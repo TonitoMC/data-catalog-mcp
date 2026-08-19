@@ -1,0 +1,462 @@
+# Data dictionary + quality rules for all datasets served by the catalog.
+#
+# Column-level rules: not_null, unique, range, allowed_values, regex, type_check
+# Dataset-level rules: row_count, freshness
+# severity: error (invalidates the dataset) | warning (flags for review only)
+
+datasets:
+  - name: telco_customer_churn
+    file: telco_customer_churn.parquet
+    description: Telecom customer subscriptions and churn.
+    origin: IBM / Kaggle
+    columns:
+      - name: customerID
+        type: string
+        description: Unique customer identifier
+        unit: null
+        rules:
+          - not_null
+          - unique
+          - regex: '^\d{4}-[A-Z]{5}$'
+            severity: error
+
+      - name: gender
+        type: string
+        description: Customer's declared gender
+        unit: null
+        rules:
+          - allowed_values: [Male, Female]
+            severity: warning
+
+      - name: SeniorCitizen
+        type: integer
+        description: Whether the customer is a senior citizen (0/1)
+        unit: null
+        rules:
+          - allowed_values: [0, 1]
+            severity: error
+
+      - name: tenure
+        type: integer
+        description: Months since the customer's first purchase
+        unit: months
+        rules:
+          - not_null
+          - range: [0, 600]
+            severity: error
+
+      - name: Contract
+        type: string
+        description: Customer's contract type
+        unit: null
+        rules:
+          - allowed_values: [Month-to-month, One year, Two year]
+            severity: error
+
+      - name: MonthlyCharges
+        type: float
+        description: Amount charged to the customer monthly
+        unit: usd
+        rules:
+          - not_null
+          - type_check: float
+            severity: error
+          - range: [0, 1000]
+            severity: warning
+
+      - name: TotalCharges
+        type: float
+        description: Total amount charged to the customer since their contract began
+        unit: usd
+        rules:
+          - type_check: float
+            severity: error
+
+      - name: Churn
+        type: string
+        description: Whether the customer left the service
+        unit: null
+        rules:
+          - allowed_values: [Yes, No]
+            severity: error
+
+    dataset_rules:
+      - row_count:
+          min: 1
+        severity: error
+
+  - name: monthly_extract_unvalidated
+    file: monthly_extract_unvalidated.parquet
+    description: >
+      Monthly copy of telco_customer_churn with inconsistencies injected in a
+      controlled, reproducible way (scripts/generate_bad_extract.py, seed=42),
+      used to demo validate_dataset. Shares the same schema and rules as
+      telco_customer_churn.
+    origin: Generated internally from IBM / Kaggle Telco Customer Churn
+    columns:
+      - name: customerID
+        type: string
+        description: Unique customer identifier
+        unit: null
+        rules:
+          - not_null
+          - regex: '^\d{4}-[A-Z]{5}$'
+            severity: error
+
+      - name: gender
+        type: string
+        description: Customer's declared gender
+        unit: null
+        rules:
+          - allowed_values: [Male, Female]
+            severity: warning
+
+      - name: SeniorCitizen
+        type: integer
+        description: Whether the customer is a senior citizen (0/1)
+        unit: null
+        rules:
+          - allowed_values: [0, 1]
+            severity: error
+
+      - name: tenure
+        type: integer
+        description: Months since the customer's first purchase
+        unit: months
+        rules:
+          - not_null
+          - range: [0, 600]
+            severity: error
+
+      - name: Contract
+        type: string
+        description: Customer's contract type
+        unit: null
+        rules:
+          - allowed_values: [Month-to-month, One year, Two year]
+            severity: error
+
+      - name: MonthlyCharges
+        type: float
+        description: Amount charged to the customer monthly
+        unit: usd
+        rules:
+          - not_null
+          - type_check: float
+            severity: error
+
+      - name: TotalCharges
+        type: float
+        description: Total amount charged to the customer since their contract began
+        unit: usd
+        rules:
+          - type_check: float
+            severity: error
+
+      - name: Churn
+        type: string
+        description: Whether the customer left the service
+        unit: null
+        rules:
+          - allowed_values: [Yes, No]
+            severity: error
+
+    dataset_rules:
+      - row_count:
+          min: 1
+        severity: error
+
+  - name: superstore_sales
+    file: superstore_sales.parquet
+    description: Sales orders, regions, and profitability for a retail chain.
+    origin: Kaggle
+    columns:
+      - name: Row ID
+        type: integer
+        description: Sequential row identifier
+        unit: null
+        rules:
+          - not_null
+          - unique
+
+      - name: Order ID
+        type: string
+        description: Sales order identifier
+        unit: null
+        rules:
+          - not_null
+
+      - name: Order Date
+        type: date
+        description: Date the order was placed
+        unit: null
+
+      - name: Ship Date
+        type: date
+        description: Date the order was shipped
+        unit: null
+
+      - name: Ship Mode
+        type: string
+        description: Shipping method
+        unit: null
+        rules:
+          - allowed_values: [First Class, Second Class, Standard Class, Same Day]
+            severity: warning
+
+      - name: Customer ID
+        type: string
+        description: Unique customer identifier
+        unit: null
+
+      - name: Customer Name
+        type: string
+        description: Customer's name
+        unit: null
+
+      - name: Segment
+        type: string
+        description: Customer's market segment
+        unit: null
+        rules:
+          - allowed_values: [Consumer, Corporate, Home Office]
+            severity: warning
+
+      - name: Country
+        type: string
+        description: Order's country
+        unit: null
+
+      - name: City
+        type: string
+        description: Order's city
+        unit: null
+
+      - name: State
+        type: string
+        description: Order's state or province
+        unit: null
+
+      - name: Region
+        type: string
+        description: Sales geographic region
+        unit: null
+
+      - name: Market
+        type: string
+        description: Global market the order belongs to
+        unit: null
+
+      - name: Product ID
+        type: string
+        description: Product identifier
+        unit: null
+
+      - name: Category
+        type: string
+        description: Product category
+        unit: null
+
+      - name: Sub-Category
+        type: string
+        description: Product subcategory
+        unit: null
+
+      - name: Product Name
+        type: string
+        description: Product name
+        unit: null
+
+      - name: Sales
+        type: float
+        description: Total sale amount for the order line
+        unit: usd
+        rules:
+          - not_null
+          - range: [0, 1000000]
+            severity: warning
+
+      - name: Quantity
+        type: integer
+        description: Number of units sold
+        unit: units
+        rules:
+          - range: [1, 100000]
+            severity: warning
+
+      - name: Discount
+        type: float
+        description: Discount applied to the order line (fraction)
+        unit: ratio
+        rules:
+          - range: [0, 1]
+            severity: error
+
+      - name: Profit
+        type: float
+        description: Profit from the order line
+        unit: usd
+
+      - name: Shipping Cost
+        type: float
+        description: Cost of shipping the order
+        unit: usd
+
+      - name: Order Priority
+        type: string
+        description: Priority assigned to the order
+        unit: null
+        rules:
+          - allowed_values: [Low, Medium, High, Critical]
+            severity: warning
+
+    dataset_rules:
+      - row_count:
+          min: 1
+        severity: error
+
+  - name: online_retail_ii
+    file: online_retail_ii.parquet
+    description: E-commerce transactions for a UK-based online retailer.
+    origin: UCI Machine Learning Repository
+    columns:
+      - name: Invoice
+        type: string
+        description: Invoice number; a "C" prefix indicates a cancellation
+        unit: null
+        rules:
+          - not_null
+
+      - name: StockCode
+        type: string
+        description: Product code
+        unit: null
+        rules:
+          - not_null
+
+      - name: Description
+        type: string
+        description: Text description of the product
+        unit: null
+
+      - name: Quantity
+        type: integer
+        description: Number of units per invoice line (negative for returns)
+        unit: units
+
+      - name: InvoiceDate
+        type: timestamp
+        description: Date and time of the transaction
+        unit: null
+        rules:
+          - not_null
+
+      - name: Price
+        type: float
+        description: Unit price of the product
+        unit: gbp
+        rules:
+          - range: [0, 100000]
+            severity: warning
+
+      - name: Customer ID
+        type: string
+        description: Unique customer identifier (may be null for unregistered purchases)
+        unit: null
+
+      - name: Country
+        type: string
+        description: Customer's country of residence
+        unit: null
+
+    dataset_rules:
+      - row_count:
+          min: 1
+        severity: error
+
+  - name: hr_employee_attrition
+    file: hr_employee_attrition.parquet
+    description: Employee attrition (turnover) within an organization.
+    origin: IBM / Kaggle
+    columns:
+      - name: EmployeeNumber
+        type: integer
+        description: Unique employee identifier
+        unit: null
+        rules:
+          - not_null
+          - unique
+
+      - name: Age
+        type: integer
+        description: Employee's age
+        unit: years
+        rules:
+          - range: [18, 75]
+            severity: error
+
+      - name: Attrition
+        type: string
+        description: Whether the employee left the organization
+        unit: null
+        rules:
+          - allowed_values: [Yes, No]
+            severity: error
+
+      - name: Department
+        type: string
+        description: Employee's department
+        unit: null
+
+      - name: JobRole
+        type: string
+        description: Employee's job role
+        unit: null
+
+      - name: BusinessTravel
+        type: string
+        description: Frequency of business travel
+        unit: null
+        rules:
+          - allowed_values: [Non-Travel, Travel_Rarely, Travel_Frequently]
+            severity: warning
+
+      - name: MonthlyIncome
+        type: integer
+        description: Employee's monthly income
+        unit: usd
+        rules:
+          - not_null
+          - range: [0, 100000]
+            severity: warning
+
+      - name: YearsAtCompany
+        type: integer
+        description: Years the employee has been with the organization
+        unit: years
+        rules:
+          - range: [0, 60]
+            severity: error
+
+      - name: YearsInCurrentRole
+        type: integer
+        description: Years the employee has held their current role
+        unit: years
+
+      - name: DistanceFromHome
+        type: integer
+        description: Distance between the employee's home and workplace
+        unit: km
+
+      - name: OverTime
+        type: string
+        description: Whether the employee works overtime
+        unit: null
+        rules:
+          - allowed_values: [Yes, No]
+            severity: warning
+
+    dataset_rules:
+      - row_count:
+          min: 1
+        severity: error

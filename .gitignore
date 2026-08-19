@@ -1,10 +1,15 @@
 .env
+.env.*
 *.env
+!.env.example
 
 # Build artifacts
 /bin/
 /dist/
 data-catalog-mcp
+
+# Local mcphost config: contains machine-specific absolute paths.
+mcphost.json
 
 # Go
 *.test
@@ -13,3 +18,8 @@ data-catalog-mcp
 # OS/editor cruft
 .DS_Store
 *.swp
+
+# Raw source CSVs/zips are re-downloaded, not committed — only the
+# converted Parquet files (data/*.parquet) are tracked.
+data/*.csv
+data/*.zip

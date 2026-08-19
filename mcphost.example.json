@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "data-catalog": {
+      "command": "/absolute/path/to/data-catalog-mcp/bin/data-catalog-mcp",
+      "env": {
+        "CATALOG_PATH": "/absolute/path/to/data-catalog-mcp/catalog/catalog.yaml",
+        "DATA_DIR": "/absolute/path/to/data-catalog-mcp/data"
+      }
+    }
+  }
+}
