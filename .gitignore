@@ -1,0 +1,15 @@
+.env
+*.env
+
+# Build artifacts
+/bin/
+/dist/
+data-catalog-mcp
+
+# Go
+*.test
+*.out
+
+# OS/editor cruft
+.DS_Store
+*.swp
