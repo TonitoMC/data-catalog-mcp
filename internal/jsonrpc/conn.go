@@ -58,3 +58,44 @@ func (c *Conn) WriteResponse(resp *Response) error {
 	}
 	return nil
 }
+
+// WriteRequest encodes and sends req, terminated by a newline. Used by the
+// client side of a connection.
+func (c *Conn) WriteRequest(req *Request) error {
+	if err := c.enc.Encode(req); err != nil {
+		return fmt.Errorf("jsonrpc: write: %w", err)
+	}
+	return nil
+}
+
+// ReadResponse blocks until the next line arrives and parses it as a
+// Response. Returns io.EOF when the input stream is closed. Used by the
+// client side of a connection.
+func (c *Conn) ReadResponse() (*Response, error) {
+	line, err := c.ReadLine()
+	if err != nil {
+		return nil, err
+	}
+	var resp Response
+	if err := json.Unmarshal(line, &resp); err != nil {
+		return nil, fmt.Errorf("jsonrpc: %w: %w", ErrParse, err)
+	}
+	return &resp, nil
+}
+
+// ReadLine blocks until the next line arrives and returns it unparsed.
+// Returns io.EOF when the input stream is closed. Used by callers that
+// need to inspect a message before deciding whether it's a Request or a
+// Response (e.g. a client watching for unsolicited server notifications).
+func (c *Conn) ReadLine() ([]byte, error) {
+	if !c.scanner.Scan() {
+		if err := c.scanner.Err(); err != nil {
+			return nil, fmt.Errorf("jsonrpc: read: %w", err)
+		}
+		return nil, io.EOF
+	}
+	line := c.scanner.Bytes()
+	buf := make([]byte, len(line))
+	copy(buf, line)
+	return buf, nil
+}

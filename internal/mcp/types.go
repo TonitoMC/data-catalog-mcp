@@ -24,15 +24,15 @@ type capability struct {
 	Tools map[string]any `json:"tools"`
 }
 
-// Tool describes one callable tool for tools/list.
-type Tool struct {
+// ToolInfo describes one callable tool for tools/list.
+type ToolInfo struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
 	InputSchema any    `json:"inputSchema"`
 }
 
 type listToolsResult struct {
-	Tools []Tool `json:"tools"`
+	Tools []ToolInfo `json:"tools"`
 }
 
 type callToolParams struct {

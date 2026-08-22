@@ -23,7 +23,7 @@ const (
 	CodeInternalError  = -32603
 )
 
-// Request is an incoming call. A nil ID means it's a notification: the
+// Request is an incoming call. A nil ID means it's a notification, the
 // caller does not expect (and must not receive) a Response.
 type Request struct {
 	JSONRPC string           `json:"jsonrpc"`
@@ -57,9 +57,11 @@ func (e *Error) Error() string {
 	return e.Message
 }
 
-// NewError builds an *Error for one of the standard codes above.
-func NewError(code int, message string) *Error {
-	return &Error{Code: code, Message: message}
+// NewError builds an *Error for one of the standard codes above. data is
+// optional structured context for the caller to parse programmatically;
+// pass nil when the message alone is enough.
+func NewError(code int, message string, data any) *Error {
+	return &Error{Code: code, Message: message, Data: data}
 }
 
 // NewResult builds a successful Response for the given request ID.
