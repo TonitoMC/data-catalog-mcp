@@ -40,7 +40,7 @@ func main() {
 
 	configPath := getEnv("CLIENT_CONFIG", "client.json")
 	llmURL := getEnv("LLM_API_URL", "http://localhost:11434/v1")
-	llmModel := getEnv("LLM_MODEL", "qwen2.5:7b-instruct")
+	llmModel := getEnv("LLM_MODEL", "qwen3:8b")
 	model := llm.New(llmURL, llmModel, os.Getenv("LLM_API_KEY"))
 
 	cfg, err := client.LoadConfig(configPath)

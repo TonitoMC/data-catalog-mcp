@@ -7,8 +7,8 @@ import (
 	"io"
 )
 
-// maxMessageSize bounds a single line's length. Large enough for tool
-// results like chart_column's base64-encoded image content.
+// maxMessageSize bounds a single line's length, sized generously for
+// large tool results (e.g. a full column dump from profile_column).
 const maxMessageSize = 16 * 1024 * 1024
 
 // Conn reads newline-delimited JSON-RPC requests from r and writes
