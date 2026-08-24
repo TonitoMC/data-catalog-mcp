@@ -31,12 +31,6 @@ and every catalog tool are implemented and working end to end:
   query; semantic search via embeddings when configured, keyword matching
   otherwise
 
-On top of the server, there's also a generic MCP client (`internal/client`),
-a multi-server router that treats the data-catalog server as just one of
-several MCP servers alongside third-party ones (filesystem, git), and a chat
-REPL (`cmd/chat`) that lets a local Ollama model use all of them as tools. See
-[Client & chat](#client--chat-using-it-with-a-local-llm) below.
-
 ## Requirements
 
 - Go 1.24+
@@ -74,7 +68,7 @@ EMBEDDINGS_API_URL=http://localhost:11434
 EMBEDDINGS_MODEL=nomic-embed-text
 
 LLM_API_URL=http://localhost:11434/v1
-LLM_MODEL=gemma4:e4b
+LLM_MODEL=qwen2.5:7b-instruct
 LLM_API_KEY=
 ```
 
@@ -102,12 +96,12 @@ just a URL. Ollama exposes an OpenAI-compatible API at `/v1` out of the box,
 so pointing at a local model is just:
 
 ```bash
-ollama pull gemma4:e4b   # any tool-calling-capable model works
+ollama pull qwen2.5:7b-instruct   # any tool-calling-capable model works
 ```
 
 ```bash
 LLM_API_URL=http://localhost:11434/v1
-LLM_MODEL=gemma4:e4b
+LLM_MODEL=qwen2.5:7b-instruct
 LLM_API_KEY=
 ```
 
@@ -178,14 +172,23 @@ printf '%s\n%s\n' \
   | ./bin/data-catalog-mcp
 ```
 
-## Client & chat: using it with a local LLM
+## Architecture: server vs. client stack
 
-`internal/client` is a barebones MCP client. It's provider-agnostic in the
-same sense the server is: it spawns any MCP server as a subprocess and speaks
-standard JSON-RPC/stdio MCP to it — nothing here is data-catalog-specific.
-`internal/client.Router` connects to a *set* of servers, keyed by name, and
-routes tool calls to the right one — so this project's own server is just one
-entry in that set, alongside official third-party MCP servers.
+Two halves, talking only over MCP — neither knows the other's internals.
+
+**The server** (`cmd/server`, on `internal/mcp` + `internal/tools`) is the
+data-catalog MCP server itself: catalog parsing, Parquet reading, validation,
+embeddings. It only speaks standard MCP/JSON-RPC over stdio, so it isn't
+tied to this repo's own client — any MCP host (Claude Desktop, etc.) can spawn
+`bin/data-catalog-mcp` directly with the same `command`/`env` shape as the
+`data-catalog` entry in `client.json` below.
+
+**The client stack** (`internal/client`, `cmd/chat`, `cmd/client`) is a
+generic, provider-agnostic MCP client with no data-catalog-specific code.
+`internal/client.Router` connects to a *set* of MCP servers by name
+(data-catalog plus the official filesystem and git servers) and routes tool
+calls to whichever one owns them. `cmd/chat` is a chat REPL built on the
+Router; `cmd/client` is a one-shot CLI for calling a single tool directly.
 
 The set of servers is a config file (`client.json`, gitignored — machine-
 specific absolute paths; `./scripts/setup.sh` generates it for you, or copy
