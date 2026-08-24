@@ -9,11 +9,20 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"time"
 
 	"github.com/tonitomc/data-catalog-mcp/internal/jsonrpc"
 )
 
 const protocolVersion = "2024-11-05"
+
+// callTimeout bounds how long call() waits for a subprocess's response.
+// Without it, a server that never replies (crashed, or a tool like
+// git_commit blocking on an editor/GPG prompt it can't get input for)
+// hangs the caller forever — there's no way to cancel a blocking
+// bufio.Scanner read, so a stuck response leaks the read goroutine, but
+// that's a fair trade for never freezing the whole chat loop.
+const callTimeout = 20 * time.Second
 
 type clientInfo struct {
 	Name    string `json:"name"`
@@ -161,7 +170,23 @@ func (c *Client) call(method string, params any, out any) error {
 		return err
 	}
 
-	resp, err := c.readResponse()
+	type result struct {
+		resp *jsonrpc.Response
+		err  error
+	}
+	done := make(chan result, 1)
+	go func() {
+		resp, err := c.readResponse()
+		done <- result{resp, err}
+	}()
+
+	var res result
+	select {
+	case res = <-done:
+	case <-time.After(callTimeout):
+		return fmt.Errorf("client: %s: no response after %s (server unresponsive)", method, callTimeout)
+	}
+	resp, err := res.resp, res.err
 	if err != nil {
 		return err
 	}
