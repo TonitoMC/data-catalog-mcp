@@ -8,8 +8,7 @@
 /dist/
 data-catalog-mcp
 
-# Local mcphost/client configs: contain machine-specific absolute paths.
-mcphost.json
+# Local client config: contains machine-specific absolute paths.
 client.json
 
 # Go

@@ -1,7 +1,7 @@
 // Command client is a barebones multi-server MCP client. It reads a
-// config listing servers to connect to (same mcpServers schema as
-// mcphost.json), spawns each as a subprocess, and routes tool calls to
-// the right one by server name. See client.example.json for the shape.
+// config listing servers to connect to, spawns each as a subprocess, and
+// routes tool calls to the right one by server name. See
+// client.example.json for the shape.
 //
 // Usage:
 //

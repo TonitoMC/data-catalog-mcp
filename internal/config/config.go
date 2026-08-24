@@ -18,8 +18,7 @@ type Config struct {
 
 // Load reads configuration from environment variables. Only path-ish values
 // get local fallbacks; embeddings service settings depend on whatever the
-// developer is running, so those come from .env (or .env.dev, etc) with no
-// hardcoded default.
+// developer is running, so those come from .env with no hardcoded default.
 func Load() Config {
 	// Load .env if available
 	_ = godotenv.Load()

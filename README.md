@@ -47,6 +47,21 @@ REPL (`cmd/chat`) that lets a local Ollama model use all of them as tools. See
 
 ## Setup
 
+Fastest path — from a fresh clone:
+
+```bash
+./scripts/setup.sh
+```
+
+This generates `.env` and `client.json` from their tracked templates (filling
+in this checkout's absolute path automatically) and builds
+`bin/data-catalog-mcp`. It never overwrites a file that already exists, so
+it's safe to re-run. It prints the remaining steps (pulling Ollama models)
+when done.
+
+The rest of this section explains what that script does and how to do it by
+hand, if you'd rather.
+
 Config values have no hardcoded defaults beyond the catalog/data paths — create
 your own `.env` (gitignored, along with any `.env.*` variant). See
 `.env.example` for the full set:
@@ -173,8 +188,8 @@ routes tool calls to the right one — so this project's own server is just one
 entry in that set, alongside official third-party MCP servers.
 
 The set of servers is a config file (`client.json`, gitignored — machine-
-specific absolute paths; copy `client.example.json` to start) using the same
-`mcpServers` schema as `mcphost.json`:
+specific absolute paths; `./scripts/setup.sh` generates it for you, or copy
+`client.example.json` and fill in the paths by hand):
 
 ```json
 {
@@ -264,24 +279,4 @@ data/                    Parquet datasets (committed; raw CSVs regenerate via sc
 scripts/                 Python helpers to build the Parquet files from raw CSVs
 
 client.example.json     tracked template for client.json (mcpServers config)
-mcphost.example.json    tracked template for mcphost.json (alternative chat
-                        frontend for the server alone — see below)
-```
-
-## Alternative: mcphost
-
-Before `cmd/chat` existed, [mcphost](https://github.com/mark3labs/mcphost)
-was used as an external chat frontend for the server alone (not the
-multi-server router). It still works if you'd rather use an established tool
-than this repo's own REPL:
-
-```bash
-curl -sLO https://github.com/mark3labs/mcphost/releases/latest/download/mcphost_Linux_x86_64.tar.gz
-tar xzf mcphost_Linux_x86_64.tar.gz
-mv mcphost ~/.local/bin/
-
-cp mcphost.example.json mcphost.json   # edit paths inside for your checkout
-go build -o bin/data-catalog-mcp ./cmd/server
-
-mcphost --config mcphost.json -m ollama:gemma4:e4b
 ```

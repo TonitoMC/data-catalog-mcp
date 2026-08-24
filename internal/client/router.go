@@ -7,9 +7,8 @@ import (
 	"sort"
 )
 
-// ServerConfig describes how to launch one MCP server. It mirrors the
-// mcpServers schema already used by mcphost.json / mcphost.example.json
-// in this repo, so the same config shape works for both.
+// ServerConfig describes how to launch one MCP server, as declared under
+// "mcpServers" in client.json.
 type ServerConfig struct {
 	Command string            `json:"command"`
 	Args    []string          `json:"args,omitempty"`
