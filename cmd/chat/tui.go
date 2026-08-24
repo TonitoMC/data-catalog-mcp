@@ -18,12 +18,16 @@ import (
 
 // Minimalist, low-chrome palette: a single accent color for structure
 // (prompt, borders, the model's own turns), everything else falls back to
-// the terminal's normal foreground/dim so it works in light or dark
-// terminals without fighting the user's theme.
+// dim/error accents. Fixed (not lipgloss.AdaptiveColor) deliberately —
+// AdaptiveColor queries the terminal's background via an OSC escape
+// sequence to pick light vs. dark, and that query races Bubbletea's own
+// stdin reader for keyboard input. On terminals where that race goes
+// wrong the query never resolves, freezing the whole program and leaking
+// the unread response bytes to the terminal once it's killed.
 var (
-	colorAccent = lipgloss.AdaptiveColor{Light: "25", Dark: "39"}
-	colorDim    = lipgloss.AdaptiveColor{Light: "245", Dark: "243"}
-	colorError  = lipgloss.AdaptiveColor{Light: "160", Dark: "203"}
+	colorAccent = lipgloss.Color("39")
+	colorDim    = lipgloss.Color("243")
+	colorError  = lipgloss.Color("203")
 
 	userStyle      = lipgloss.NewStyle().Bold(true)
 	assistantStyle = lipgloss.NewStyle().Foreground(colorAccent)
@@ -258,7 +262,11 @@ func renderMarkdown(content string, width int) string {
 		width = 80
 	}
 	r, err := glamour.NewTermRenderer(
-		glamour.WithAutoStyle(),
+		// Fixed style, not WithAutoStyle: auto-style also queries the
+		// terminal background over the same OSC mechanism that races
+		// Bubbletea's stdin reader (see colorAccent above) — avoid it here
+		// too rather than trading one hang for another.
+		glamour.WithStandardStyle("dark"),
 		glamour.WithWordWrap(width),
 	)
 	if err != nil {
