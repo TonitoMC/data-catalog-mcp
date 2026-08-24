@@ -1,5 +1,0 @@
-This is a demo text file created as part of the task. 
-
-It serves as an example of how to create and write to a text file in the system. 
-
-Feel free to modify this content as needed!
