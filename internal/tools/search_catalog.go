@@ -6,6 +6,7 @@ import (
 	"math"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/tonitomc/data-catalog-mcp/internal/catalog"
 	"github.com/tonitomc/data-catalog-mcp/internal/embeddings"
@@ -29,12 +30,33 @@ type searchDoc struct {
 	dataset, column, text string
 }
 
+// docVectorCache holds every catalog doc's embedding, computed once per
+// process and reused for every subsequent search_catalog call — the
+// catalog's metadata doesn't change while the process is running, so
+// there's no reason to re-embed it on every request. It's plain
+// in-memory state: nothing persists across restarts, and a restart is
+// exactly how you'd force it to recompute (e.g. after editing
+// catalog.yaml) — there's no separate "reset" mechanism because the
+// cache's entire lifetime is the process's lifetime.
+type docVectorCache struct {
+	once    sync.Once
+	err     error
+	entries []cachedDoc
+}
+
+type cachedDoc struct {
+	doc searchDoc
+	vec []float32
+}
+
+var globalDocCache docVectorCache
+
 // SearchCatalog finds the datasets/columns whose catalog metadata is most
 // relevant to query. If embed is non-nil, it's used for semantic
 // (embedding-similarity) search; on any embeddings failure (including
 // embed being nil, e.g. no service configured), it falls back to keyword
 // matching over dataset/column names and descriptions.
-func SearchCatalog(ctx context.Context, cat *catalog.Catalog, embed *embeddings.Client, query string, limit int) ([]SearchResult, error) {
+func SearchCatalog(ctx context.Context, cat *catalog.Catalog, embed embeddings.Client, query string, limit int) ([]SearchResult, error) {
 	if limit <= 0 {
 		limit = defaultSearchLimit
 	}
@@ -61,21 +83,41 @@ func buildSearchDocs(cat *catalog.Catalog) []searchDoc {
 	return docs
 }
 
-func searchByEmbedding(ctx context.Context, embed *embeddings.Client, docs []searchDoc, query string, limit int) ([]SearchResult, error) {
-	queryVec, err := embed.Embed(ctx, query)
+// cachedDocVectors returns every doc's embedding, computing them all
+// (once, ever, per process) on the first call and reusing that result
+// for every call after.
+func cachedDocVectors(ctx context.Context, embed embeddings.Client, docs []searchDoc) ([]cachedDoc, error) {
+	globalDocCache.once.Do(func() {
+		entries := make([]cachedDoc, 0, len(docs))
+		for _, d := range docs {
+			vec, err := embed.EmbedDocument(ctx, d.text)
+			if err != nil {
+				globalDocCache.err = err
+				return
+			}
+			entries = append(entries, cachedDoc{doc: d, vec: vec})
+		}
+		globalDocCache.entries = entries
+	})
+	return globalDocCache.entries, globalDocCache.err
+}
+
+func searchByEmbedding(ctx context.Context, embed embeddings.Client, docs []searchDoc, query string, limit int) ([]SearchResult, error) {
+	queryVec, err := embed.EmbedQuery(ctx, query)
 	if err != nil {
 		return nil, err
 	}
 
-	results := make([]SearchResult, 0, len(docs))
-	for _, d := range docs {
-		vec, err := embed.Embed(ctx, d.text)
-		if err != nil {
-			return nil, err
-		}
+	cached, err := cachedDocVectors(ctx, embed, docs)
+	if err != nil {
+		return nil, err
+	}
+
+	results := make([]SearchResult, 0, len(cached))
+	for _, c := range cached {
 		results = append(results, SearchResult{
-			Dataset: d.dataset, Column: d.column, Description: d.text,
-			Score: cosineSimilarity(queryVec, vec),
+			Dataset: c.doc.dataset, Column: c.doc.column, Description: c.doc.text,
+			Score: cosineSimilarity(queryVec, c.vec),
 		})
 	}
 

@@ -7,10 +7,15 @@ import (
 	"sort"
 )
 
-// ServerConfig describes how to launch one MCP server, as declared under
-// "mcpServers" in client.json.
+// ServerConfig describes how to reach one MCP server, as declared under
+// "mcpServers" in client.json. Exactly one of URL or Command should be
+// set: URL connects over HTTP to a server already running somewhere
+// (e.g. Cloud Run); Command spawns one locally over stdio. Both point at
+// the identical server code — this field is the only thing that changes
+// between "local" and "remote" for a given server.
 type ServerConfig struct {
-	Command string            `json:"command"`
+	URL     string            `json:"url,omitempty"`
+	Command string            `json:"command,omitempty"`
 	Args    []string          `json:"args,omitempty"`
 	Env     map[string]string `json:"env,omitempty"`
 }
@@ -36,16 +41,23 @@ func LoadConfig(path string) (Config, error) {
 // Router owns one Client per configured server and routes tool calls to
 // the right one by server name.
 type Router struct {
-	clients map[string]*Client
+	clients map[string]Client
 }
 
-// NewRouter connects to and initializes every server in cfg. If any
-// server fails to connect or initialize, servers already brought up are
-// closed before returning the error.
+// NewRouter connects to and initializes every server in cfg — over HTTP
+// for a ServerConfig with URL set, over stdio (spawning Command)
+// otherwise. If any server fails to connect or initialize, servers
+// already brought up are closed before returning the error.
 func NewRouter(cfg Config) (*Router, error) {
-	clients := make(map[string]*Client, len(cfg.MCPServers))
+	clients := make(map[string]Client, len(cfg.MCPServers))
 	for name, sc := range cfg.MCPServers {
-		c, err := ConnectWithEnv(sc.Command, sc.Args, sc.Env)
+		var c Client
+		var err error
+		if sc.URL != "" {
+			c, err = ConnectHTTP(sc.URL)
+		} else {
+			c, err = ConnectWithEnv(sc.Command, sc.Args, sc.Env)
+		}
 		if err != nil {
 			closeAll(clients)
 			return nil, fmt.Errorf("client: connect %q: %w", name, err)
@@ -60,7 +72,7 @@ func NewRouter(cfg Config) (*Router, error) {
 	return &Router{clients: clients}, nil
 }
 
-func closeAll(clients map[string]*Client) {
+func closeAll(clients map[string]Client) {
 	for _, c := range clients {
 		_ = c.Close()
 	}

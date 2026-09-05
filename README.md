@@ -97,23 +97,49 @@ Config via environment variables / `.env`:
 |---|---|---|
 | `CATALOG_PATH` | `catalog/catalog.yaml` | Path to the catalog definition |
 | `DATA_DIR` | `data` | Directory containing Parquet files |
-| `EMBEDDINGS_API_URL` | — | Base URL for the embeddings service |
-| `EMBEDDINGS_MODEL` | — | Model name requested from the service |
-| `EMBEDDINGS_API_KEY` | — | API key (unused for local Ollama) |
+| `EMBEDDINGS_PROVIDER` | `ollama` | `ollama` (local) or `gemini` |
+| `EMBEDDINGS_API_URL` | — | Base URL for the embeddings service (`ollama` provider only) |
+| `EMBEDDINGS_MODEL` | — | Model name, e.g. `nomic-embed-text` (Ollama) or `gemini-embedding-001` (Gemini) |
+| `EMBEDDINGS_API_KEY` | — | API key (unused for `ollama`, required for `gemini`) |
+
+Every catalog doc (one per dataset/column) is embedded once per process and
+cached in memory — `search_catalog` only embeds the query on every call
+after that. The cache lives exactly as long as the process does; there's no
+separate "reset," restarting the server is what recomputes it (e.g. after
+editing `catalog.yaml`).
 
 The server never transmits raw data — only catalog metadata and user queries
 go to the embeddings service, so search works fully offline against a local
 Ollama instance. If the embeddings service is unreachable, `search_catalog`
 falls back to keyword matching instead of failing.
 
-It's never run directly by hand for real use — an MCP host launches it as a
-subprocess over stdin/stdout. For a manual sanity check:
+It's never run directly by hand for real use — an MCP host launches it,
+either as a local subprocess over stdin/stdout, or (with `TRANSPORT=http`)
+as an HTTP server a host reaches over the network. Same binary, same tool
+logic either way — only the transport changes. For a manual sanity check
+of the default (stdio) mode:
 
 ```bash
 printf '%s\n%s\n' \
   '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05"}}' \
   '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"list_datasets","arguments":{}}}' \
   | ./bin/data-catalog-mcp
+```
+
+Or over HTTP:
+
+```bash
+TRANSPORT=http HTTP_ADDR=:8091 ./bin/data-catalog-mcp &
+curl -s -X POST http://localhost:8091 \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"ping","arguments":{}}}'
+```
+
+`PORT` also works instead of `HTTP_ADDR` (Cloud Run sets this itself). To
+point `client.json` at a server running remotely instead of spawning it
+locally, give that entry a `"url"` instead of a `"command"`:
+
+```json
+"data-catalog": { "url": "https://your-cloud-run-url" }
 ```
 
 ### Regenerating the data

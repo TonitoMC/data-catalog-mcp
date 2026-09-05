@@ -9,11 +9,12 @@ import (
 
 // Config holds everything the server needs to boot.
 type Config struct {
-	CatalogPath      string // path to catalog.yaml
-	DataDir          string // directory containing the parquet files
-	EmbeddingsAPIKey string // key for the external embeddings service (empty for local Ollama)
-	EmbeddingsAPIURL string // base URL for the embeddings service
-	EmbeddingsModel  string // model name to request from the embeddings service
+	CatalogPath        string // path to catalog.yaml
+	DataDir            string // directory containing the parquet files
+	EmbeddingsProvider string // "ollama" (default) or "gemini"
+	EmbeddingsAPIKey   string // key for the external embeddings service (empty for local Ollama)
+	EmbeddingsAPIURL   string // base URL for the embeddings service (ollama provider only)
+	EmbeddingsModel    string // model name to request from the embeddings service
 }
 
 // Load reads configuration from environment variables. Only path-ish values
@@ -24,11 +25,12 @@ func Load() Config {
 	_ = godotenv.Load()
 
 	return Config{
-		CatalogPath:      getEnv("CATALOG_PATH", "catalog/catalog.yaml"),
-		DataDir:          getEnv("DATA_DIR", "data"),
-		EmbeddingsAPIKey: os.Getenv("EMBEDDINGS_API_KEY"),
-		EmbeddingsAPIURL: os.Getenv("EMBEDDINGS_API_URL"),
-		EmbeddingsModel:  os.Getenv("EMBEDDINGS_MODEL"),
+		CatalogPath:        getEnv("CATALOG_PATH", "catalog/catalog.yaml"),
+		DataDir:            getEnv("DATA_DIR", "data"),
+		EmbeddingsProvider: getEnv("EMBEDDINGS_PROVIDER", "ollama"),
+		EmbeddingsAPIKey:   os.Getenv("EMBEDDINGS_API_KEY"),
+		EmbeddingsAPIURL:   os.Getenv("EMBEDDINGS_API_URL"),
+		EmbeddingsModel:    os.Getenv("EMBEDDINGS_MODEL"),
 	}
 }
 

@@ -15,7 +15,7 @@ import (
 // keyword matching.
 type searchCatalogTool struct {
 	cat   *catalog.Catalog
-	embed *embeddings.Client
+	embed embeddings.Client
 }
 
 func (searchCatalogTool) Name() string { return "search_catalog" }

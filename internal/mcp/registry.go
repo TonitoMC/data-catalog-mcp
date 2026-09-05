@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"errors"
+	"log"
 
 	"github.com/tonitomc/data-catalog-mcp/internal/catalog"
 	"github.com/tonitomc/data-catalog-mcp/internal/config"
@@ -17,9 +18,14 @@ var ErrInvalidArgument = errors.New("mcp: invalid argument")
 // name. Adding a tool means adding one entry here (plus its own
 // tool_*.go file implementing Tool).
 func newRegistry(cfg config.Config, cat *catalog.Catalog) map[string]Tool {
-	var embed *embeddings.Client
-	if cfg.EmbeddingsAPIURL != "" && cfg.EmbeddingsModel != "" {
-		embed = embeddings.NewClient(cfg)
+	var embed embeddings.Client
+	if cfg.EmbeddingsProvider == "gemini" || (cfg.EmbeddingsAPIURL != "" && cfg.EmbeddingsModel != "") {
+		var err error
+		embed, err = embeddings.NewClient(cfg)
+		if err != nil {
+			log.Printf("mcp: embeddings unavailable, search_catalog will fall back to keyword matching: %v", err)
+			embed = nil
+		}
 	}
 
 	reg := []Tool{
