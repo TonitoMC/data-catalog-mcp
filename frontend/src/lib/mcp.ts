@@ -16,7 +16,7 @@ export interface ServersResponse {
   servers: ServerInfo[]
 }
 
-// fetchServers hits cmd/api's one config/discovery endpoint: the chat
+// fetchServers hits cmd/host's one config/discovery endpoint: the chat
 // model + endpoint it was started with, and every MCP server it connected
 // to at its own startup (with the tools each one reported via
 // tools/list). Nothing here is called live per-request on our side — the

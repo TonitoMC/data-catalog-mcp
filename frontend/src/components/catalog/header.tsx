@@ -22,7 +22,7 @@ function Header({ serverInfo }: { serverInfo: ServerInfoState }) {
         {serverInfo.status === "loading" && (
           <Badge variant="neutral">connecting…</Badge>
         )}
-        {serverInfo.status === "error" && <Badge variant="accent">● cmd/api unreachable</Badge>}
+        {serverInfo.status === "error" && <Badge variant="accent">● cmd/host unreachable</Badge>}
       </div>
     </header>
   )

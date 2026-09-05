@@ -1,5 +1,5 @@
 // Package llm defines a provider-agnostic chat interface with tool
-// calling, so cmd/api doesn't care whether it's talking to a local
+// calling, so cmd/host doesn't care whether it's talking to a local
 // Ollama instance or an OpenAI-compatible API.
 package llm
 

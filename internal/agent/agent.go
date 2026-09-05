@@ -1,4 +1,4 @@
-// Package agent holds the tool-call plumbing for cmd/api: qualifying tool
+// Package agent holds the tool-call plumbing for cmd/host: qualifying tool
 // names by their owning server, resolving a (possibly mangled) qualified
 // name back to a server + tool call, and streaming one turn of the
 // tool-call loop against an llm.Client and a client.Router.

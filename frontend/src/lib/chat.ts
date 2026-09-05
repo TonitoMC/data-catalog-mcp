@@ -1,7 +1,7 @@
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8090"
 
 // Wire shape of internal/llm.Message — opaque to us. We never construct
-// or read into these ourselves; we just hold onto whatever cmd/api handed
+// or read into these ourselves; we just hold onto whatever cmd/host handed
 // back (in the "done" event) and send it right back on the next turn.
 export type WireMessage = Record<string, unknown>
 
@@ -33,7 +33,7 @@ export interface StreamHandlers {
   onError: (message: string) => void
 }
 
-// streamChat POSTs to cmd/api's /api/chat and reads its server-sent-event
+// streamChat POSTs to cmd/host's /api/chat and reads its server-sent-event
 // response as it arrives, dispatching each event to the matching handler.
 // Not the browser EventSource API (that's GET-only) — this is a manual
 // line-based SSE reader over a streamed POST response body.

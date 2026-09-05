@@ -1,0 +1,12 @@
+.git
+bin/
+frontend/
+node_modules/
+.env
+.env.*
+!.env.example
+client.json
+*.pdf
+*.png
+data/*.csv
+data/*.zip

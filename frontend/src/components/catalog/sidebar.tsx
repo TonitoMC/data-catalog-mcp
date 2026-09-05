@@ -15,7 +15,7 @@ function Sidebar({ serverInfo }: { serverInfo: ServerInfoState }) {
         <PanelBody className="flex flex-col gap-3 p-2.5">
           {serverInfo.status === "loading" && (
             <p className="px-1 font-mono text-[12px] text-[var(--ink-soft)]">
-              connecting to cmd/api…
+              connecting to cmd/host…
             </p>
           )}
 
@@ -24,7 +24,7 @@ function Sidebar({ serverInfo }: { serverInfo: ServerInfoState }) {
               <AlertTriangle size={13} className="mt-0.5 shrink-0 text-[var(--accent)]" />
               <div className="flex flex-col gap-0.5">
                 <span className="font-mono text-[11.5px] font-medium text-[var(--accent)]">
-                  couldn't reach cmd/api
+                  couldn't reach cmd/host
                 </span>
                 <span className="font-mono text-[10.5px] text-[var(--ink-soft)]">
                   {serverInfo.message} — is it running on :8090?

@@ -1,4 +1,4 @@
-// Command api is the MCP host for the web frontend: it connects to every
+// Command host is the MCP host for the web frontend: it connects to every
 // MCP server listed in a config (same mcpServers schema as client.json)
 // once at startup, and serves what it found — which servers came up and
 // what tools each one offers — as JSON. It also drives the tool-call loop
@@ -51,35 +51,35 @@ func main() {
 	_ = godotenv.Load()
 
 	configPath := getEnv("CLIENT_CONFIG", "client.json")
-	addr := getEnv("API_ADDR", ":8090")
+	addr := getEnv("HOST_ADDR", ":8090")
 	llmURL := getEnv("LLM_API_URL", "http://localhost:11434/v1")
 	llmModel := getEnv("LLM_MODEL", "qwen3:8b")
 	llmClient := llm.New(llmURL, llmModel, os.Getenv("LLM_API_KEY"))
 
 	cfg, err := client.LoadConfig(configPath)
 	if err != nil {
-		log.Fatalf("api: %v", err)
+		log.Fatalf("host: %v", err)
 	}
 	router, err := client.NewRouter(cfg)
 	if err != nil {
-		log.Fatalf("api: %v", err)
+		log.Fatalf("host: %v", err)
 	}
 	defer router.Close()
 
 	tools, resolver, err := agent.CollectTools(router)
 	if err != nil {
-		log.Fatalf("api: %v", err)
+		log.Fatalf("host: %v", err)
 	}
 
 	servers, err := collectServers(router)
 	if err != nil {
-		log.Fatalf("api: %v", err)
+		log.Fatalf("host: %v", err)
 	}
 	serversBody, err := json.Marshal(serversResponse{LLMModel: llmModel, LLMURL: llmURL, Servers: servers})
 	if err != nil {
-		log.Fatalf("api: encode servers: %v", err)
+		log.Fatalf("host: encode servers: %v", err)
 	}
-	log.Printf("api: connected to %d server(s) %v, %d tools, model %s (%s)",
+	log.Printf("host: connected to %d server(s) %v, %d tools, model %s (%s)",
 		len(servers), router.Servers(), len(tools), llmModel, llmURL)
 
 	mux := http.NewServeMux()
@@ -127,9 +127,9 @@ func main() {
 		})
 	})
 
-	log.Printf("api: listening on %s", addr)
+	log.Printf("host: listening on %s", addr)
 	if err := http.ListenAndServe(addr, withCORS(mux)); err != nil {
-		log.Fatalf("api: %v", err)
+		log.Fatalf("host: %v", err)
 	}
 }
 
