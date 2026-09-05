@@ -1,12 +1,15 @@
 package llm
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
+	"strings"
 	"time"
 )
 
@@ -62,6 +65,7 @@ type chatCompletionsRequest struct {
 	Model    string        `json:"model"`
 	Messages []wireMessage `json:"messages"`
 	Tools    []Tool        `json:"tools,omitempty"`
+	Stream   bool          `json:"stream,omitempty"`
 }
 
 type chatCompletionsResponse struct {
@@ -71,13 +75,9 @@ type chatCompletionsResponse struct {
 }
 
 func (c *client) Chat(ctx context.Context, messages []Message, tools []Tool) (Message, error) {
-	wireMessages := make([]wireMessage, len(messages))
-	for i, m := range messages {
-		wm, err := toWireMessage(m)
-		if err != nil {
-			return Message{}, fmt.Errorf("llm: %w", err)
-		}
-		wireMessages[i] = wm
+	wireMessages, err := toWireMessages(messages)
+	if err != nil {
+		return Message{}, err
 	}
 
 	body, err := json.Marshal(chatCompletionsRequest{
@@ -89,13 +89,9 @@ func (c *client) Chat(ctx context.Context, messages []Message, tools []Tool) (Me
 		return Message{}, fmt.Errorf("llm: marshal request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/chat/completions", bytes.NewReader(body))
+	req, err := c.newRequest(ctx, body)
 	if err != nil {
-		return Message{}, fmt.Errorf("llm: build request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	if c.apiKey != "" {
-		req.Header.Set("Authorization", "Bearer "+c.apiKey)
+		return Message{}, err
 	}
 
 	resp, err := c.httpClient.Do(req)
@@ -117,6 +113,192 @@ func (c *client) Chat(ctx context.Context, messages []Message, tools []Tool) (Me
 		return Message{}, fmt.Errorf("llm: response had no choices")
 	}
 	return fromWireMessage(out.Choices[0].Message)
+}
+
+// streamChunk is one server-sent chunk of a streamed chat completion.
+// ReasoningContent is a de-facto extension (DeepSeek and compatible
+// providers, including OpenCode Go's deepseek-* models) carrying the
+// model's reasoning/thinking text on its own channel, separate from the
+// final answer in Content — plain OpenAI-compatible servers simply never
+// set it.
+type streamChunk struct {
+	Choices []struct {
+		Delta struct {
+			Content          string              `json:"content"`
+			ReasoningContent string              `json:"reasoning_content"`
+			ToolCalls        []wireToolCallDelta `json:"tool_calls"`
+		} `json:"delta"`
+	} `json:"choices"`
+}
+
+// wireToolCallDelta is one incremental slice of a tool call as it streams
+// in: Index identifies which tool call (of possibly several in the same
+// response) this piece belongs to; ID/Name arrive once, early; Arguments
+// arrives in pieces that must be concatenated in order.
+type wireToolCallDelta struct {
+	Index    int    `json:"index"`
+	ID       string `json:"id,omitempty"`
+	Function struct {
+		Name      string `json:"name,omitempty"`
+		Arguments string `json:"arguments,omitempty"`
+	} `json:"function"`
+}
+
+func (c *client) ChatStream(ctx context.Context, messages []Message, tools []Tool) (<-chan StreamDelta, error) {
+	wireMessages, err := toWireMessages(messages)
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := json.Marshal(chatCompletionsRequest{
+		Model:    c.model,
+		Messages: wireMessages,
+		Tools:    tools,
+		Stream:   true,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("llm: marshal request: %w", err)
+	}
+
+	req, err := c.newRequest(ctx, body)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("llm: request failed: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		return nil, fmt.Errorf("llm: unexpected status %d: %s", resp.StatusCode, b)
+	}
+
+	ch := make(chan StreamDelta)
+	go streamChatCompletions(resp.Body, ch)
+	return ch, nil
+}
+
+// accumulatingToolCall gathers one tool call's fields as they arrive
+// across multiple stream chunks, keyed by the wire delta's Index.
+type accumulatingToolCall struct {
+	id   string
+	name string
+	args strings.Builder
+}
+
+// streamChatCompletions reads an OpenAI-compatible SSE response body
+// ("data: {...}" lines, terminated by "data: [DONE]"), reassembles
+// incremental content and tool-call deltas, and sends them (plus a final
+// Done value carrying the fully assembled Message) on ch. Always closes
+// body and ch before returning.
+func streamChatCompletions(body io.ReadCloser, ch chan<- StreamDelta) {
+	defer close(ch)
+	defer body.Close()
+
+	var content strings.Builder
+	calls := map[int]*accumulatingToolCall{}
+	announced := map[int]bool{}
+	order := []int{}
+
+	reader := bufio.NewReader(body)
+	for {
+		line, err := reader.ReadString('\n')
+		line = strings.TrimSpace(line)
+
+		if line != "" && strings.HasPrefix(line, "data: ") {
+			payload := strings.TrimPrefix(line, "data: ")
+			if payload == "[DONE]" {
+				break
+			}
+
+			var chunk streamChunk
+			if jsonErr := json.Unmarshal([]byte(payload), &chunk); jsonErr != nil {
+				ch <- StreamDelta{Err: fmt.Errorf("llm: decode stream chunk: %w", jsonErr)}
+				return
+			}
+			if len(chunk.Choices) > 0 {
+				delta := chunk.Choices[0].Delta
+				if delta.ReasoningContent != "" {
+					ch <- StreamDelta{ReasoningContent: delta.ReasoningContent}
+				}
+				if delta.Content != "" {
+					content.WriteString(delta.Content)
+					ch <- StreamDelta{Content: delta.Content}
+				}
+				for _, tc := range delta.ToolCalls {
+					a, ok := calls[tc.Index]
+					if !ok {
+						a = &accumulatingToolCall{}
+						calls[tc.Index] = a
+						order = append(order, tc.Index)
+					}
+					if tc.ID != "" {
+						a.id = tc.ID
+					}
+					if tc.Function.Name != "" {
+						a.name = tc.Function.Name
+					}
+					if tc.Function.Arguments != "" {
+						a.args.WriteString(tc.Function.Arguments)
+					}
+					if a.name != "" && !announced[tc.Index] {
+						announced[tc.Index] = true
+						ch <- StreamDelta{ToolCallStarted: &ToolCallStarted{Index: tc.Index, Name: a.name}}
+					}
+				}
+			}
+		}
+
+		if err != nil {
+			if err != io.EOF {
+				ch <- StreamDelta{Err: fmt.Errorf("llm: read stream: %w", err)}
+				return
+			}
+			break
+		}
+	}
+
+	toolCalls := make([]ToolCall, 0, len(order))
+	sort.Ints(order)
+	for _, idx := range order {
+		a := calls[idx]
+		var args map[string]any
+		if a.args.Len() > 0 {
+			if err := json.Unmarshal([]byte(a.args.String()), &args); err != nil {
+				ch <- StreamDelta{Err: fmt.Errorf("llm: decode tool call arguments: %w", err)}
+				return
+			}
+		}
+		toolCalls = append(toolCalls, ToolCall{ID: a.id, Function: ToolCallFunction{Name: a.name, Arguments: args}})
+	}
+
+	ch <- StreamDelta{Done: true, Message: Message{Role: "assistant", Content: content.String(), ToolCalls: toolCalls}}
+}
+
+func (c *client) newRequest(ctx context.Context, body []byte) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/chat/completions", bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("llm: build request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if c.apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	}
+	return req, nil
+}
+
+func toWireMessages(messages []Message) ([]wireMessage, error) {
+	wireMessages := make([]wireMessage, len(messages))
+	for i, m := range messages {
+		wm, err := toWireMessage(m)
+		if err != nil {
+			return nil, fmt.Errorf("llm: %w", err)
+		}
+		wireMessages[i] = wm
+	}
+	return wireMessages, nil
 }
 
 func toWireMessage(m Message) (wireMessage, error) {

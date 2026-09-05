@@ -1,14 +1,20 @@
-# Data dictionary + quality rules for all datasets served by the catalog.
+# Data dictionary + quality rules for Meridian Holdings' internal data
+# catalog — the datasets registered here come from four business units'
+# systems of record (Meridian Mobile, Meridian Retail, Meridian Commerce,
+# and Corporate HR), landed by each system's own extract pipeline.
 #
 # Column-level rules: not_null, unique, range, allowed_values, regex, type_check
 # Dataset-level rules: row_count, freshness
 # severity: error (invalidates the dataset) | warning (flags for review only)
 
 datasets:
-  - name: telco_customer_churn
-    file: telco_customer_churn.parquet
-    description: Telecom customer subscriptions and churn.
-    origin: IBM / Kaggle
+  - name: meridian_mobile_subscribers
+    file: meridian_mobile_subscribers.parquet
+    description: >
+      Meridian Mobile's subscriber base: active and churned accounts, contract
+      terms, and monthly billing. Validated nightly extract from the billing
+      system — the current source of truth for subscriber reporting.
+    origin: Meridian Mobile — CRM/billing nightly export (validated)
     columns:
       - name: customerID
         type: string
@@ -85,14 +91,15 @@ datasets:
           min: 1
         severity: error
 
-  - name: monthly_extract_unvalidated
-    file: monthly_extract_unvalidated.parquet
+  - name: meridian_mobile_subscribers_raw
+    file: meridian_mobile_subscribers_raw.parquet
     description: >
-      Monthly copy of telco_customer_churn with inconsistencies injected in a
-      controlled, reproducible way (scripts/generate_bad_extract.py, seed=42),
-      used to demo validate_dataset. Shares the same schema and rules as
-      telco_customer_churn.
-    origin: Generated internally from IBM / Kaggle Telco Customer Churn
+      Current month's raw subscriber extract, landed by Meridian Mobile's
+      billing pipeline before the nightly validation job runs against it.
+      Same schema as meridian_mobile_subscribers, but this is the
+      pre-validation copy — expect the odd malformed account ID or
+      out-of-range value until it's been checked and promoted.
+    origin: Meridian Mobile — billing pipeline, pre-validation landing zone
     columns:
       - name: customerID
         type: string
@@ -166,10 +173,12 @@ datasets:
           min: 1
         severity: error
 
-  - name: superstore_sales
-    file: superstore_sales.parquet
-    description: Sales orders, regions, and profitability for a retail chain.
-    origin: Kaggle
+  - name: meridian_retail_sales
+    file: meridian_retail_sales.parquet
+    description: >
+      Meridian Retail's order-level sales across every region and market:
+      order and ship dates, product hierarchy, and per-line profitability.
+    origin: Meridian Retail — ERP sales order export
     columns:
       - name: Row ID
         type: integer
@@ -315,10 +324,13 @@ datasets:
           min: 1
         severity: error
 
-  - name: online_retail_ii
-    file: online_retail_ii.parquet
-    description: E-commerce transactions for a UK-based online retailer.
-    origin: UCI Machine Learning Repository
+  - name: meridian_commerce_transactions
+    file: meridian_commerce_transactions.parquet
+    description: >
+      Meridian Commerce's UK/EU storefront transaction log: invoice lines,
+      product codes, quantities, and customer country. Cancelled orders
+      appear as invoices with a "C" prefix rather than being removed.
+    origin: Meridian Commerce — e-commerce platform export
     columns:
       - name: Invoice
         type: string
@@ -374,10 +386,12 @@ datasets:
           min: 1
         severity: error
 
-  - name: hr_employee_attrition
-    file: hr_employee_attrition.parquet
-    description: Employee attrition (turnover) within an organization.
-    origin: IBM / Kaggle
+  - name: corporate_hr_attrition
+    file: corporate_hr_attrition.parquet
+    description: >
+      Corporate headcount and attrition record across Meridian Holdings:
+      role, tenure, compensation band, travel frequency, and overtime.
+    origin: Corporate HRIS — People Analytics export
     columns:
       - name: EmployeeNumber
         type: integer

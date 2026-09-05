@@ -36,5 +36,6 @@ Done. Next steps:
   - Edit .env if you're not using local Ollama defaults (LLM_API_URL/LLM_MODEL/LLM_API_KEY).
   - ollama pull nomic-embed-text   # embeddings for search_catalog
   - ollama pull qwen3:8b           # or any other tool-calling-capable chat model
-  - go run ./cmd/chat              # start the chat REPL
+  - go run ./cmd/api               # backend: MCP host + streaming chat bridge, :8090
+  - cd frontend && bun dev         # frontend: chat UI, talks to cmd/api
 EOF

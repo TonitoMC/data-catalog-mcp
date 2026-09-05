@@ -1,8 +1,8 @@
-"""Generates data/monthly_extract_unvalidated.parquet: a copy of the Telco
-Customer Churn dataset with five deliberate, reproducible inconsistencies,
-each targeting a distinct validation rule type. Used to demo validate_dataset.
+"""Generates data/meridian_mobile_subscribers_raw.parquet: a copy of the
+subscriber base with five deliberate, reproducible inconsistencies, each
+targeting a distinct validation rule type. Used to demo validate_dataset.
 
-Requires telco_customer_churn.parquet to already exist (run
+Requires meridian_mobile_subscribers.parquet to already exist (run
 convert_to_parquet.py first).
 
 Usage:
@@ -50,7 +50,7 @@ def main():
     # so the type_check rule has something realistic to catch.
     df["TotalCharges"] = df["TotalCharges"].astype(str).replace("nan", None)
 
-    out_path = DATA_DIR / "monthly_extract_unvalidated.parquet"
+    out_path = DATA_DIR / "meridian_mobile_subscribers_raw.parquet"
     df.to_parquet(out_path, index=False)
     print(f"{out_path.name}: {n} rows, 5 inconsistency types injected (seed={SEED})")
 
