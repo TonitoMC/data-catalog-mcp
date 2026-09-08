@@ -497,14 +497,15 @@ Rol & Consumido sin modificar. \\
 \midrule
 \code{git\_status} & Estado del árbol de trabajo. \\
 \code{git\_add} & Agrega archivos al stage. \\
+\code{git\_reset} & Quita del stage todos los cambios agregados. \\
 \code{git\_commit} & Crea un commit. \\
 \code{git\_diff} / \code{git\_diff\_staged} / \code{git\_diff\_unstaged} & Muestra diferencias. \\
 \code{git\_log} & Historial de commits. \\
-\code{git\_init} & Inicializa un repositorio. \\
+\code{git\_show} & Contenido de un commit específico. \\
 \code{git\_branch} / \code{git\_checkout} / \code{git\_create\_branch} & Operaciones de rama. \\
 \bottomrule
 \end{tabularx}
-\caption{Herramientas representativas expuestas por el servidor Git (según su propio \texttt{tools/list}).}
+\caption{Herramientas expuestas por el servidor Git, según su \texttt{tools/list}. No incluye \texttt{git\_init}.}
 \label{tab:git-tools}
 \end{table}
 
