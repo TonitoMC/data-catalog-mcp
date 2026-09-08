@@ -13,6 +13,8 @@
 \usepackage{parskip}
 \usepackage{csquotes}
 \usepackage{pgfplots}
+\usepackage{multirow}
+\usepackage{placeins}
 \usepackage[backend=biber,style=numeric,sorting=none]{biblatex}
 \addbibresource{referencias.bib}
 
@@ -48,6 +50,12 @@
   morestring=[b]"
 }
 
+\lstdefinelanguage{json}{
+  keywords={},
+  sensitive=true,
+  morestring=[b]"
+}
+
 \title{\textbf{Data Catalog MCP: Servidor MCP de Catálogo de Datos con Validación de Calidad} \vspace{1em}\\
   Redes de Computadoras - CC3067}
 \author{José Antonio Mérida Castejón}
@@ -72,29 +80,29 @@ sin estado que el chatbot anfitrión coordina en lenguaje natural; el LLM
 coordina las llamadas e interpreta los resultados, pero no genera
 información por su cuenta.
 
-El escenario concreto se enmarca como \textbf{Meridian Holdings}, una
-empresa ficticia con cuatro unidades de negocio (Meridian Mobile, Meridian
-Retail, Meridian Commerce y Recursos Humanos corporativos), cada una con su
-propio sistema de origen. El patrón corresponde a herramientas de uso
-industrial ya establecido --- los archivos \code{schema.yml} de dbt, las
-suites de expectativas de Great Expectations, y catálogos de datos como
-DataHub o Amundsen --- sin constituir un \emph{feature store}, ya que no
-calcula ni sirve valores de \emph{features} para inferencia.
+El escenario concreto se enmarca como Meridian Holdings (inventada por Claude), una empresa
+ficticia con cuatro unidades de negocio (Meridian Mobile, Meridian Retail,
+Meridian Commerce y Recursos Humanos corporativos), cada una con su propio
+sistema de origen. El patrón corresponde a herramientas de uso industrial ya
+establecido, como los archivos \code{schema.yml} de dbt, las suites de
+expectativas de Great Expectations, o catálogos de datos como DataHub o
+Amundsen, aunque sin constituir un \emph{feature store} propiamente, ya que
+no calcula ni sirve valores de \emph{features} para inferencia.
 
 \subsection{Origen de la información}
 El servidor obtiene su información de dos fuentes complementarias, ambas
 locales al servidor y sin dependencias externas en tiempo de consulta:
 
 \begin{enumerate}
-  \item \textbf{Archivos de datos en formato Parquet} (\code{data/*.parquet}),
-  sobre los cuales se calculan estadísticas y validaciones. Cinco datasets:
+  \item Archivos de datos en formato Parquet (\code{data/*.parquet}), sobre
+  los cuales se calculan estadísticas y validaciones. Son cinco datasets:
   suscriptores de Meridian Mobile, ventas de Meridian Retail, transacciones
-  de comercio electrónico de Meridian Commerce, rotación de personal de RR.HH.,
-  y un extracto mensual sin validar (copia de suscriptores con inconsistencias
-  introducidas de forma controlada y reproducible, para demostrar
-  \code{validate\_dataset}).
-  \item \textbf{Catálogo declarativo} en un archivo YAML (\code{catalog.yaml}),
-  escrito manualmente, que actúa simultáneamente como diccionario de datos y
+  de comercio electrónico de Meridian Commerce, rotación de personal de
+  RR.HH., y un extracto mensual sin validar (copia de suscriptores con
+  inconsistencias introducidas de forma controlada y reproducible, usado
+  para demostrar \code{validate\_dataset}).
+  \item Un catálogo declarativo en un archivo YAML (\code{catalog.yaml}),
+  escrito manualmente, que funciona a la vez como diccionario de datos y
   definición de reglas de calidad. Para cada columna se declara su tipo,
   descripción, unidad y las reglas que debe cumplir:
 
@@ -111,7 +119,8 @@ locales al servidor y sin dependencias externas en tiempo de consulta:
 \end{lstlisting}
 \end{enumerate}
 
-Las reglas de calidad operan a nivel de columna (\code{not\_null},
+Dentro de este proyecto, se utilizó Claude para generar las archivos \texttt{.yaml} y documentar
+los datasets. Las reglas de calidad operan a nivel de columna (\code{not\_null},
 \code{unique}, \code{range}, \code{allowed\_values}, \code{regex},
 \code{type\_check}) o a nivel de dataset (\code{row\_count},
 \code{freshness}). Cada regla declara una severidad: \code{error} invalida
@@ -119,84 +128,128 @@ el dataset para uso posterior; \code{warning} señala una anomalía que
 amerita revisión sin bloquear el flujo de trabajo.
 
 \subsection{Arquitectura interna}
-El servidor (\code{cmd/server}) está escrito en Go, sin SDKs de MCP ni
-librerías de JSON-RPC de terceros --- todo el framing de mensajes y el
-manejo del protocolo se implementó a mano, según lo exigido por el
-enunciado. Los paquetes relevantes:
+El servidor (\code{cmd/server}) está escrito en Go, todo el framing de mensajes
+y el manejo del protocolo se implementó a mano. Los paquetes relevantes son:
 
 \begin{itemize}
-  \item \code{internal/jsonrpc} --- framing JSON-RPC 2.0 sobre un
-  \code{io.Reader}/\code{io.Writer} genérico: lee mensajes delimitados por
+  \item \code{internal/jsonrpc}: framing JSON-RPC 2.0 sobre un
+  \code{io.Reader}/\code{io.Writer} genérico. Lee mensajes delimitados por
   línea, los decodifica a la estructura \code{Message} (\code{jsonrpc},
   \code{id}, \code{method}, \code{params}, \code{result}, \code{error}), y
   distingue solicitud de notificación según la presencia del campo
   \code{id}.
-  \item \code{internal/mcp} --- implementa el ciclo de vida MCP sobre esa
-  capa: \code{initialize}, \code{notifications/initialized},
-  \code{tools/list} y \code{tools/call}, más el despacho a cada
-  herramienta (un archivo \code{tool\_*.go} por herramienta).
-  \item \code{internal/catalog} --- parseo de \code{catalog.yaml} a
-  estructuras tipadas.
-  \item \code{internal/data} --- resuelve cada entrada del catálogo al
-  archivo Parquet correspondiente y lo lee.
-  \item \code{internal/embeddings} --- cliente de embeddings con dos
+  \item \code{internal/mcp}: implementa el ciclo de vida MCP sobre esa capa
+  (\code{initialize}, \code{notifications/initialized}, \code{tools/list} y
+  \code{tools/call}), además del despacho a cada herramienta (un archivo
+  \code{tool\_*.go} por herramienta).
+  \item \code{internal/catalog}: parseo de \code{catalog.yaml} a estructuras
+  tipadas.
+  \item \code{internal/data}: resuelve cada entrada del catálogo al archivo
+  Parquet correspondiente y lo lee.
+  \item \code{internal/embeddings}: cliente de embeddings con dos
   proveedores intercambiables (Ollama local, Gemini remoto) para
   \code{search\_catalog}.
-  \item \code{internal/config} --- configuración vía variables de entorno
+  \item \code{internal/config}: configuración vía variables de entorno
   (\code{TRANSPORT}, \code{CATALOG\_PATH}, \code{DATA\_DIR}, \code{PORT}, etc.).
 \end{itemize}
 
 Esta separación permite que la \emph{misma} implementación se ejecute sin
-modificaciones tanto de forma local (stdio) como remota (HTTP/Cloud Run):
-el núcleo MCP es agnóstico al transporte.
+modificaciones tanto de forma local (stdio) como remota (HTTP/Cloud Run).
 
 \subsection{Herramientas expuestas (endpoints MCP)}
 Todas las herramientas se invocan mediante el método JSON-RPC
-\code{tools/call}, identificadas por su campo \code{name} y con argumentos
-en \code{params.arguments}. La Tabla~\ref{tab:tools} detalla parámetros y
-tipo de retorno de cada una.
+\code{tools/call}, identificadas por su campo \code{name}, con argumentos en
+\code{params.arguments}. Son siete en total, definidas cada una en su propio
+archivo \code{internal/mcp/tool\_*.go} y registradas en
+\code{internal/mcp/registry.go}. La Tabla~\ref{tab:tools-params} detalla los
+parámetros de entrada de cada una, tal como los declara su
+\code{inputSchema} (JSON Schema, visible vía \code{tools/list}).
 
-\begin{table}[h]
+\begin{table}[ht]
 \centering
-\begin{tabularx}{\textwidth}{@{}l X@{}}
+\begin{tabularx}{\textwidth}{@{}l l l c X@{}}
 \toprule
-\textbf{Herramienta} & \textbf{Parámetros y descripción} \\
+\textbf{Herramienta} & \textbf{Parámetro} & \textbf{Tipo} & \textbf{Requerido} & \textbf{Descripción} \\
 \midrule
-\code{ping} & Sin parámetros. Retorna \code{"pong"}; verificación de salud. \\
-\code{list\_datasets} & Sin parámetros. Retorna nombre, descripción, origen,
-  número de filas y fecha de actualización de cada dataset registrado. \\
-\code{describe\_dataset} & \code{dataset} (string, requerido). Retorna el
-  diccionario de datos completo: columnas, tipos, descripciones, unidades y
-  reglas declaradas. \\
-\code{profile\_column} & \code{dataset}, \code{column} (string, requeridos).
-  Retorna estadísticas según el tipo: cuantiles y atípicos para numéricas,
-  cardinalidad y valores frecuentes para categóricas, rango y vacíos para
-  fechas. \\
-\code{validate\_dataset} & \code{dataset} (string, requerido). Ejecuta las
-  reglas declaradas contra los datos reales; retorna veredicto general
-  (reglas evaluadas/aprobadas/fallidas), detalle por regla con severidad y
-  porcentaje de violaciones, y hasta cinco valores de ejemplo por violación. \\
-\code{find\_undocumented\_columns} & \code{dataset} (string, requerido).
-  Compara las columnas presentes en el Parquet contra las declaradas en el
-  catálogo, para detectar documentación desactualizada. \\
-\code{search\_catalog} & \code{query} (string, requerido). Búsqueda
-  semántica (embeddings, similitud coseno) o por palabra clave si el
-  servicio de embeddings no está disponible. Consulta dos índices
-  independientes --- datasets y columnas --- y retorna ambos conjuntos por
-  separado, ya que sus puntajes no son comparables entre sí. \\
-\code{chart\_column} & \code{dataset}, \code{column} (requeridos). Genera un
-  histograma, gráfica de barras o serie de tiempo según el tipo de columna,
-  y lo retorna como bloque de contenido tipo imagen del protocolo MCP. \\
+\code{ping} & \multicolumn{4}{l}{(sin parámetros)} \\
+\midrule
+\code{list\_datasets} & \multicolumn{4}{l}{(sin parámetros)} \\
+\midrule
+\code{describe\_dataset} & \code{name} & string & sí & Nombre del dataset, tal como lo retorna \code{list\_datasets}. \\
+\midrule
+\multirow{2}{*}{\code{profile\_column}} & \code{dataset} & string & sí & Nombre del dataset. \\
+ & \code{column} & string & sí & Nombre de la columna, tal como la retorna \code{describe\_dataset}. \\
+\midrule
+\code{validate\_dataset} & \code{dataset} & string & sí & Nombre del dataset a validar. \\
+\midrule
+\code{find\_undocumented\_columns} & \code{dataset} & string & no & Dataset a revisar; si se omite, se revisan todos los registrados. \\
+\midrule
+\multirow{2}{*}{\code{search\_catalog}} & \code{query} & string & sí & Consulta en lenguaje natural. \\
+ & \code{limit} & integer & no & Máximo de resultados por índice (por defecto 5). \\
 \bottomrule
 \end{tabularx}
-\caption{Herramientas expuestas por el servidor MCP y sus parámetros.}
-\label{tab:tools}
+\caption{Parámetros de entrada de cada herramienta, según su \texttt{inputSchema}.}
+\label{tab:tools-params}
 \end{table}
+
+La Tabla~\ref{tab:tools-wire} muestra, para cada herramienta, los
+\code{arguments} de una llamada real y una forma resumida de lo que
+retorna dentro de \code{result.content[0].text}.
+
+\begin{table}[ht]
+\centering
+\footnotesize
+\begin{tabular}{@{}l >{\raggedright\arraybackslash}p{5.6cm} >{\raggedright\arraybackslash}p{5.6cm}@{}}
+\toprule
+\textbf{Herramienta} & \textbf{\texttt{arguments}} & \textbf{\texttt{result} (resumido)} \\
+\midrule
+\code{ping} & \code{\{\}} & \code{"pong"} \\
+\midrule
+\code{list\_datasets} & \code{\{\}} & \code{[\{name, description, origin, row\_count, updated\_at\}, ...]} \\
+\midrule
+\code{describe\_dataset} & \code{\{"name":"meridian\_retail\_sales"\}} & \code{\{name, columns: [\{name, type, description, unit, rules\}, ...]\}} \\
+\midrule
+\code{profile\_column} & \code{\{"dataset":"meridian\_retail\_sales", "column":"unit\_price"\}} & \code{\{type:"float", count:48213, nulls:0, min:3.5, max:289.99, mean:47.82\}} \\
+\midrule
+\code{validate\_dataset} & \code{\{"dataset":"meridian\_mobile\_subscribers\_raw"\}} & \code{\{rules\_evaluated:12, passed:9, failed:3, violations:[...]\}} \\
+\midrule
+\code{find\_undocumented\_columns} & \code{\{"dataset":"meridian\_retail\_sales"\}} & \code{[\{dataset, columns:["internal\_flag"]\}]} \\
+\midrule
+\code{search\_catalog} & \code{\{"query":"customer churn", "limit":3\}} & \code{\{datasets:[...], columns:[...]\}} \\
+\bottomrule
+\end{tabular}
+\caption{Argumentos de la solicitud y forma resumida del resultado para cada herramienta. El Listado~\ref{lst:profile-call} muestra el mensaje JSON-RPC completo, sin resumir, para \texttt{profile\_column}.}
+\label{tab:tools-wire}
+\end{table}
+
+Como referencia del mensaje JSON-RPC completo (no solo el campo
+\code{params}/\code{result} recortado), el Listado~\ref{lst:profile-call}
+muestra la solicitud y respuesta íntegras de la llamada a
+\code{profile\_column} de la tabla anterior:
+
+\begin{lstlisting}[language=json, caption={Solicitud y respuesta JSON-RPC completas de una llamada a \texttt{tools/call} (\texttt{profile\_column}).}, label={lst:profile-call}]
+// Solicitud (cliente -> servidor)
+{"jsonrpc":"2.0","id":"4","method":"tools/call",
+ "params":{"name":"profile_column",
+   "arguments":{"dataset":"meridian_retail_sales","column":"unit_price"}}}
+
+// Respuesta (servidor -> cliente)
+{"jsonrpc":"2.0","id":"4","result":{
+  "content":[{"type":"text","text":"{\n  \"type\": \"float\",\n  \"count\": 48213,\n  \"nulls\": 0,\n  \"min\": 3.5,\n  \"max\": 289.99,\n  \"mean\": 47.82\n}"}],
+  "isError":false
+}}
+\end{lstlisting}
+
+Un argumento faltante o inválido (por ejemplo, un \code{dataset} o
+\code{column} que no existe en el catálogo) no produce un error de
+protocolo JSON-RPC, sino un resultado de \code{tools/call} con
+\code{isError: true} y el mensaje de error como texto (ver
+\S\ref{sec:subset}).
 
 \subsection{Búsqueda semántica en dos niveles}
 \code{search\_catalog} construye al iniciar el servidor dos índices
-vectoriales: uno de datasets (nombre, descripción, origen) para consultas
-de granularidad amplia, y otro de columnas (nombre y descripción de la
+vectoriales, uno de datasets (nombre, descripción, origen) para consultas
+de granularidad amplia y otro de columnas (nombre y descripción de la
 columna junto con la descripción de su dataset, ya que el nombre de una
 columna por sí solo suele ser demasiado breve para una representación
 vectorial informativa). La recuperación es por similitud coseno mediante
@@ -208,26 +261,26 @@ de datos vectorial dedicada.
 La generación de embeddings se delega a un servicio externo (Ollama local o
 Gemini), lo que evita incorporar un modelo local al contenedor y mantiene
 una imagen ligera con arranques en frío reducidos. El servidor transmite a
-ese servicio \textbf{únicamente metadatos} --- nombres de dataset, nombres
-de columna, descripciones y unidades, redactados manualmente en el
-catálogo --- y las consultas del usuario, nunca registros ni valores de
-los archivos de datos. Esta separación es una decisión de diseño
-deliberada que hace viable el caso de uso en un entorno donde los datos
-suelen estar sujetos a restricciones contractuales o regulatorias.
+ese servicio únicamente metadatos (nombres de dataset, nombres de columna,
+descripciones y unidades, redactados manualmente en el catálogo) y las
+consultas del usuario, nunca registros ni valores de los archivos de datos.
+Esta separación es una decisión de diseño que hace viable el
+caso de uso en un entorno donde los datos suelen estar sujetos a
+restricciones contractuales o regulatorias.
 
 \subsection{Transporte y despliegue}
 \begin{itemize}
-  \item \textbf{stdio} (local): mensajes JSON delimitados por línea sobre
+  \item stdio (local): mensajes JSON delimitados por línea sobre
   stdin/stdout del proceso hijo, spawneado por el anfitrión (\code{cmd/host}
   o \code{cmd/client}) según \code{client.json}.
-  \item \textbf{HTTP} (remoto): un único endpoint (\code{POST /}) que recibe
-  un objeto JSON-RPC por solicitud y responde con el resultado
-  correspondiente. Se activa con \code{TRANSPORT=http}; el puerto se toma
-  de la variable \code{PORT} inyectada por la plataforma.
+  \item HTTP (remoto): un único endpoint (\code{POST /}) que recibe un
+  objeto JSON-RPC por solicitud y responde con el resultado correspondiente.
+  Se activa con \code{TRANSPORT=http}; el puerto se toma de la variable
+  \code{PORT} inyectada por la plataforma.
 \end{itemize}
 
-El servidor remoto se desplegó en \textbf{Google Cloud Run}, construido
-mediante Cloud Build directamente desde el repositorio de GitHub (sin
+El servidor remoto se desplegó en Google Cloud Run, construido mediante
+Cloud Build directamente desde el repositorio de GitHub (sin
 necesidad de Docker local): una imagen \code{distroless} de dos etapas
 (compilación Go, luego binario estático más \code{catalog/} y
 \code{data/*.parquet}). Las credenciales de embeddings (\code{EMBEDDINGS\_API\_KEY})
@@ -236,6 +289,226 @@ plano. Ambos transportes exponen exactamente los mismos métodos MCP:
 \code{initialize}, \code{tools/list} y \code{tools/call}, por lo que el
 anfitrión usa el servidor remoto de forma idéntica al local, solo cambiando
 la entrada \code{url} por \code{command} en \code{client.json}.
+
+\subsection{Subconjunto de MCP implementado}
+\label{sec:subset}
+El proyecto implementa un subconjunto deliberado de la especificación MCP,
+suficiente para el ciclo de vida completo (\emph{handshake}, descubrimiento
+de herramientas, invocación) contra cualquier servidor MCP estándar, pero
+sin las extensiones agregadas en revisiones posteriores del protocolo.
+
+\paragraph{Operaciones soportadas.} Ambos lados (cliente en
+\code{internal/client}, servidor en \code{internal/mcp}) implementan
+únicamente:
+
+\begin{itemize}
+  \item \code{initialize} / \code{notifications/initialized}: \emph{handshake}
+  de sesión, donde se declara \code{protocolVersion} (\code{2025-11-25}) y la
+  única capacidad anunciada, \code{tools}.
+  \item \code{tools/list}: descubrimiento de herramientas disponibles, con su
+  \code{inputSchema} (JSON Schema).
+  \item \code{tools/call}: invocación de una herramienta. El resultado
+  siempre es un bloque de contenido de texto (\code{content:
+  [\{type:"text", text\}]}), con \code{isError} para distinguir éxito de
+  fallo.
+\end{itemize}
+
+No se implementan \code{resources}, \code{prompts}, \code{sampling},
+autorización OAuth/OIDC, \emph{elicitation}, \emph{batching} de JSON-RPC, ni
+\emph{tasks} de larga duración. La ausencia de estas extensiones 
+ no afecta el funcionamiento del \emph{host} contra servidores de terceros,
+ el cliente (\code{internal/client/stdio.go}) responde \code{method not found} a
+cualquier solicitud iniciada por el servidor que no reconozca (p.\,ej.\
+\code{sampling/createMessage}), en vez de fallar o bloquearse, precisamente
+para tolerar servidores más completos sin implementar todas sus
+capacidades.
+
+\paragraph{Manejo de errores de herramienta.}
+Un argumento inválido o una referencia no resoluble (dataset o columna
+inexistente) se reporta como resultado de \code{tools/call} con
+\code{isError: true} y el mensaje de error como texto, en vez de un error de
+protocolo JSON-RPC (\code{-32602}). Este es el comportamiento que exige la
+revisión 2025-11-25 de la especificación, permite que el modelo
+lea el error como texto y se autocorrija en el siguiente turno en vez de
+recibir una falla opaca a nivel de RPC. Solo una falla interna genuina del
+servidor (no atribuible a los argumentos recibidos) se reporta como error
+JSON-RPC (\code{-32603}) y se registra en el log del servidor.
+
+\paragraph{Transporte HTTP.} El transporte HTTP implementado
+expone un único endpoint: \code{POST /} recibe
+un mensaje JSON-RPC en el cuerpo y responde con el resultado
+correspondiente (o \code{204} si era una notificación). No implementa
+\code{GET}/\emph{Server-Sent Events}, negociación de \code{Content-Type}
+vía encabezado \code{Accept}, ni el encabezado \code{Mcp-Session-Id}, las
+tres piezas que la especificación agrega en \emph{Streamable HTTP}
+(revisión 2025-03-26) para servidores con estado de sesión y mensajes
+servidor$\to$cliente. Ninguna de las siete herramientas del servidor hace
+trabajo de larga duración ni necesita empujar datos al cliente entre
+solicitudes; cada llamada es una consulta puntual sobre el catálogo o los
+archivos Parquet, que entra y sale en una sola petición-respuesta. Por eso
+un ciclo simple de \code{POST} por mensaje es suficiente para este proyecto.
+
+\subsection{Arquitectura del proyecto: host, cliente y servidor}
+\label{sec:hcs}
+El proyecto instancia los tres actores de la arquitectura MCP (\S1 del
+enunciado) de forma explícita y verificable en el código:
+
+\begin{table}[ht]
+\centering
+\begin{tabularx}{\textwidth}{@{}l >{\raggedright\arraybackslash}p{3.2cm} X@{}}
+\toprule
+\textbf{Actor} & \textbf{Componente} & \textbf{Responsabilidad} \\
+\midrule
+Anfitrión (\emph{host}) & \code{cmd/host} & Proceso Go que lee \code{client.json}, instancia un \code{Router} (uno o más clientes), coordina el ciclo de llamadas del LLM (\code{internal/agent}) y sirve la conversación al frontend vía \emph{server-sent events} en \code{POST /api/chat}. \\
+Cliente & \code{internal/client} (\code{Router}, \code{stdioClient}, \code{httpClient}) & Un cliente por servidor configurado; implementa \code{initialize}/\code{tools/list}/\code{tools/call} sobre el transporte correspondiente (stdio o HTTP) y expone una interfaz uniforme (\code{Client}) al \emph{host}, sin importar el transporte real. \\
+Servidor & \code{cmd/server} (\code{internal/mcp}) & Ejecuta las herramientas del catálogo de datos. El mismo binario corre local (stdio) o remoto (HTTP), sin cambios de lógica; solo cambia \code{TRANSPORT}. \\
+\bottomrule
+\end{tabularx}
+\caption{Los tres actores de la arquitectura MCP, mapeados a los componentes del proyecto.}
+\label{tab:hcs}
+\end{table}
+
+En este proyecto conviven además dos servidores MCP oficiales de terceros
+(Filesystem y Git, \S\ref{sec:filesystem-git} abajo) y el servidor propio,
+todos coordinados por el mismo \emph{host} a través del mismo \code{Router}.
+Es exactamente el escenario de múltiples clientes/servidores del diagrama
+de arquitectura del enunciado (Cliente MCP 1, Cliente MCP 2, \ldots).
+
+\paragraph{Compatibilidad con Diferentes Servidores.}
+\code{Router.NewRouter} (\code{internal/client/router.go}) no asume nada
+específico sobre el servidor más allá del subconjunto de \S\ref{sec:subset}.
+Por cada entrada de \code{client.json}, construye un \code{httpClient} si la
+entrada declara \code{url}, o un \code{stdioClient} (\code{ConnectWithEnv},
+que hace \emph{spawn} de \code{command}/\code{args}) si declara
+\code{command}, y llama \code{Initialize()} sobre cualquiera de los dos de
+forma idéntica. Esto significa que cualquier servidor MCP que implemente el
+ciclo \code{initialize}/\code{tools/list}/\code{tools/call} (prácticamente todo
+servidor MCP real), puede agregarse a \code{client.json} sin
+modificar una sola línea del \emph{host}. Esto se verificó en la práctica con los servidores oficiales
+Filesystem y Git (\S\ref{sec:filesystem-git}), ambos de implementaciones
+ajenas a este proyecto.
+
+\paragraph{Compatibilidad con Diferentes Hosts.}
+Además de usarse desde el \emph{host} de este proyecto, \code{cmd/server}
+se agregó como servidor MCP a Claude Code, un anfitrión MCP de
+terceros completamente independiente de este repositorio, para confirmar
+que el servidor es interoperable con cualquier anfitrión conforme a MCP y
+no solo con el \emph{host} propio. Esto valida en la práctica la premisa
+central del protocolo (\S1 del enunciado), que una herramienta implementada
+una sola vez es utilizable por cualquier anfitrión compatible sin
+adaptación.
+
+\subsection{Ejecución: local vs.\ remoto}
+\label{sec:ejecucion}
+El código del servidor y los métodos MCP expuestos son idénticos en ambos
+casos (\S\ref{sec:subset}); lo único que cambia es la entrada
+\code{data-catalog} de \code{client.json} (\code{command} para local,
+\code{url} para remoto, \S\ref{sec:hcs}). Las instrucciones completas de
+instalación y arranque, tanto local como el despliegue a Google Cloud Run,
+están documentadas en el \code{README.md} del repositorio; a continuación
+se reproducen los comandos esenciales de cada camino.
+
+\paragraph{Local.}
+\begin{lstlisting}[language=bash]
+./scripts/setup.sh                 # genera .env y client.json, compila bin/data-catalog-mcp
+go run ./cmd/host                  # anfitrion + puente de chat, :8090
+cd frontend && bun install && bun dev   # interfaz web de chat
+\end{lstlisting}
+
+\paragraph{Remoto (Google Cloud Run).}
+\begin{lstlisting}[language=bash]
+gcloud run deploy data-catalog-mcp \
+  --source . \
+  --region northamerica-south1 \
+  --allow-unauthenticated \
+  --set-env-vars TRANSPORT=http
+\end{lstlisting}
+Cloud Build compila la imagen a partir del \code{Dockerfile} del repositorio
+sin necesidad de Docker local. La URL del servicio resultante es lo único
+que se copia a \code{client.json}; ningún otro componente del proyecto
+cambia.
+
+\subsection{Servidores MCP oficiales adicionales}
+\label{sec:filesystem-git}
+Además del servidor propio, el anfitrión se conecta a dos servidores MCP
+oficiales de Anthropic (requeridos por el enunciado, \S3.1 punto 4),
+consumidos tal cual, sin modificaciones, para demostrar interoperabilidad
+del cliente contra implementaciones de terceros. Ambos se declaran en
+\code{client.json} con transporte stdio (\code{command}/\code{args}), igual
+que cualquier otro servidor local.
+
+\begin{table}[ht]
+\centering
+\begin{tabularx}{\textwidth}{@{}l X@{}}
+\toprule
+\textbf{Campo} & \textbf{Valor} \\
+\midrule
+Paquete & \code{@modelcontextprotocol/server-filesystem} \\
+Transporte & stdio, \code{npx -y @modelcontextprotocol/server-filesystem <root-path>} \\
+Alcance & \code{/home/Tono/Documents/data-catalog-mcp} \\
+Rol & Consumido sin modificar; demuestra interoperabilidad cliente-servidor de terceros. \\
+\bottomrule
+\end{tabularx}
+\caption{Servidor MCP oficial: Filesystem.}
+\label{tab:filesystem-server}
+\end{table}
+
+\begin{table}[ht]
+\centering
+\begin{tabularx}{\textwidth}{@{}l X@{}}
+\toprule
+\textbf{Herramienta} & \textbf{Propósito} \\
+\midrule
+\code{read\_file} / \code{read\_text\_file} & Lee el contenido de un archivo. \\
+\code{write\_file} & Crea o sobrescribe un archivo. \\
+\code{edit\_file} & Aplica una edición estilo diff. \\
+\code{create\_directory} & Crea un directorio. \\
+\code{list\_directory} & Lista el contenido de un directorio. \\
+\code{move\_file} & Mueve o renombra un archivo. \\
+\code{search\_files} & Búsqueda recursiva por nombre/contenido. \\
+\code{get\_file\_info} & Metadatos (stat) de un archivo. \\
+\bottomrule
+\end{tabularx}
+\caption{Herramientas representativas expuestas por el servidor Filesystem (según su propio \texttt{tools/list}).}
+\label{tab:filesystem-tools}
+\end{table}
+
+\begin{table}[ht]
+\centering
+\begin{tabularx}{\textwidth}{@{}l X@{}}
+\toprule
+\textbf{Campo} & \textbf{Valor} \\
+\midrule
+Paquete & \code{mcp-server-git} (Python, módulo \code{mcp\_server\_git}) \\
+Transporte & stdio, \code{python3 -m mcp\_server\_git -r <ruta-repositorio>} \\
+Alcance & \code{/home/Tono/Documents/data-catalog-mcp} \\
+Rol & Consumido sin modificar. \\
+\bottomrule
+\end{tabularx}
+\caption{Servidor MCP oficial: Git.}
+\label{tab:git-server}
+\end{table}
+
+\begin{table}[ht]
+\centering
+\begin{tabularx}{\textwidth}{@{}l X@{}}
+\toprule
+\textbf{Herramienta} & \textbf{Propósito} \\
+\midrule
+\code{git\_status} & Estado del árbol de trabajo. \\
+\code{git\_add} & Agrega archivos al stage. \\
+\code{git\_commit} & Crea un commit. \\
+\code{git\_diff} / \code{git\_diff\_staged} / \code{git\_diff\_unstaged} & Muestra diferencias. \\
+\code{git\_log} & Historial de commits. \\
+\code{git\_init} & Inicializa un repositorio. \\
+\code{git\_branch} / \code{git\_checkout} / \code{git\_create\_branch} & Operaciones de rama. \\
+\bottomrule
+\end{tabularx}
+\caption{Herramientas representativas expuestas por el servidor Git (según su propio \texttt{tools/list}).}
+\label{tab:git-tools}
+\end{table}
+
+\FloatBarrier
 
 \section{Análisis de la comunicación (Wireshark)}
 
@@ -264,172 +537,193 @@ Se realizaron dos capturas complementarias contra el mismo servidor MCP
 \subsection{Mensajes JSON-RPC capturados}
 \label{sec:jsonrpc}
 Se identifican tres tipos de mensaje JSON-RPC en la especificación:
-\textbf{solicitud} (\code{request}, contiene \code{id} y \code{method}),
-\textbf{respuesta} (\code{response}, contiene \code{id} y \code{result} o
-\code{error}), y \textbf{notificación} (\code{notification}, sin \code{id},
-no espera respuesta --- usada por MCP para \code{notifications/initialized}).
-Estos mensajes de sincronización (\code{initialize} /
-\code{notifications/initialized}) son los que establecen el protocolo antes
-de que el anfitrión pueda invocar herramientas; el resto son solicitud/respuesta
-ordinarias de operación.
+solicitud (\code{request}, contiene \code{id} y \code{method}), respuesta
+(\code{response}, contiene \code{id} y \code{result} o \code{error}), y
+notificación (\code{notification}, sin \code{id}, no espera respuesta,
+usada por MCP para \code{notifications/initialized}). Los mensajes de
+sincronización (\code{initialize} / \code{notifications/initialized}) son
+los que establecen el protocolo antes de que el anfitrión pueda invocar
+herramientas; el resto son solicitud/respuesta ordinarias de operación.
 
-% TODO: completar la tabla con los mensajes reales capturados en la sesión
-% local (número de frame de Wireshark, id JSON-RPC, etc.) y agregar las
-% figuras local-03..08 referenciadas abajo una vez tomadas las capturas.
-\begin{table}[h]
+La Tabla~\ref{tab:jsonrpc} clasifica los mensajes de la captura local
+(\code{tcp.stream eq 10}, misma sesión TCP durante toda la conversación),
+identificados por su número de frame de Wireshark.
+
+\begin{table}[ht]
 \centering
-\begin{tabularx}{\textwidth}{@{}l l l X@{}}
+\begin{tabularx}{\textwidth}{@{}l l l l X@{}}
 \toprule
-\textbf{\#} & \textbf{Tipo} & \textbf{Método} & \textbf{Observaciones} \\
+\textbf{Frame} & \textbf{Tipo} & \textbf{Método} & \textbf{HTTP} & \textbf{Observaciones} \\
 \midrule
-1 & Solicitud & \code{initialize} & Handshake inicial, negocia \code{protocolVersion} y \code{capabilities}. \\
-2 & Respuesta & --- & Responde al \code{id} de (1) con las capacidades del servidor. \\
-3 & Notificación & \code{notifications/initialized} & Sin \code{id}; confirma que el cliente completó el handshake. \\
-4 & Solicitud & \code{tools/list} & Pide el catálogo de herramientas disponibles. \\
-5 & Respuesta & --- & Responde con el arreglo \code{tools} (Tabla~\ref{tab:tools}). \\
-6 & Solicitud & \code{tools/call} & Ej. \code{list\_datasets}, sin argumentos. \\
-7 & Respuesta & --- & \code{content} con el resultado en texto. \\
+24 & Solicitud & \code{initialize} & 200 & \code{Content-Length: 172}; negocia \code{protocolVersion:"2025-11-25"} y declara \code{clientInfo}. \\
+26 & Respuesta & --- & 200 & \code{Content-Length: 154}; responde al \code{id:1} con \code{capabilities.tools} y \code{serverInfo}. \\
+28 & Notificación & \code{notifications/initialized} & 204 & \code{Content-Length: 54}; sin campo \code{id} en el cuerpo. El servidor no emite un objeto JSON-RPC de respuesta (no corresponde a una notificación); a nivel HTTP responde \code{204 No Content} sin cuerpo (frame 29). \\
+39 & Solicitud & \code{tools/list} & 200 & \code{id:2}; sin parámetros. \\
+40 & Respuesta & --- & 200 & Arreglo \code{tools} completo, con el \code{inputSchema} de las siete herramientas (Tabla~\ref{tab:tools-params}). \\
+745 & Solicitud & \code{tools/call} & 200 & \code{id:4}; \code{params:\{"name":"list\_datasets","arguments":\{\}\}}. \\
+746 & Respuesta & --- & 200 & \code{Content-Length: 2016}; \code{content[0].text} con el arreglo de los cinco datasets registrados. \\
 \bottomrule
 \end{tabularx}
-\caption{Clasificación de los mensajes JSON-RPC observados en la captura.}
+\caption{Clasificación de los mensajes JSON-RPC observados en la captura local, por número de frame de Wireshark.}
 \label{tab:jsonrpc}
 \end{table}
 
-% TODO: capturas pendientes (contra el servidor local con TRANSPORT=http,
-% filtro tcp.port == 8091). Guardar en docs/figs/ con estos nombres exactos
-% y descomentar el bloque de figuras correspondiente:
-%
-%   local-01-filtered-list.png     lista de paquetes con el filtro aplicado
-%   local-02-loopback-header.png   encabezado "Null/Loopback" (sin Ethernet real)
-%   local-03-http-stream.png       Follow > HTTP Stream, conversación completa
-%   local-04-initialize-request.png   cuerpo JSON de la solicitud initialize
-%   local-05-initialize-response.png  cuerpo JSON de la respuesta a initialize
-%   local-06-notification.png         notifications/initialized (sin "id")
-%   local-07-toolscall-request.png    cuerpo JSON de una solicitud tools/call
-%   local-08-toolscall-response.png   cuerpo JSON de su respuesta
-%
-% \begin{figure}[ht]
-% \centering
-% \includegraphics[width=0.95\textwidth]{figs/local-01-filtered-list.png}
-% \caption{Captura local: paquetes filtrados con \texttt{tcp.port == 8091}.}
-% \label{fig:local-filtered-list}
-% \end{figure}
-%
-% \begin{figure}[ht]
-% \centering
-% \includegraphics[width=0.95\textwidth]{figs/local-02-loopback-header.png}
-% \caption{Captura local: encabezado ``Null/Loopback'' --- sin trama
-% Ethernet real, ya que el tráfico nunca sale de la interfaz \texttt{lo}.}
-% \label{fig:local-loopback}
-% \end{figure}
-%
-% \begin{figure}[ht]
-% \centering
-% \includegraphics[width=0.95\textwidth]{figs/local-03-http-stream.png}
-% \caption{Captura local: conversación completa vía Follow > HTTP Stream,
-% mostrando en texto plano cada solicitud y respuesta JSON-RPC en orden.}
-% \label{fig:local-http-stream}
-% \end{figure}
-%
-% \begin{figure}[ht]
-% \centering
-% \includegraphics[width=0.95\textwidth]{figs/local-04-initialize-request.png}
-% \caption{Captura local: cuerpo JSON de la solicitud \texttt{initialize}.}
-% \label{fig:local-init-req}
-% \end{figure}
-%
-% \begin{figure}[ht]
-% \centering
-% \includegraphics[width=0.95\textwidth]{figs/local-05-initialize-response.png}
-% \caption{Captura local: respuesta a \texttt{initialize}, mismo \texttt{id}
-% que la solicitud.}
-% \label{fig:local-init-resp}
-% \end{figure}
-%
-% \begin{figure}[ht]
-% \centering
-% \includegraphics[width=0.95\textwidth]{figs/local-06-notification.png}
-% \caption{Captura local: \texttt{notifications/initialized} --- nótese la
-% ausencia del campo \texttt{id}, lo que la identifica como notificación.}
-% \label{fig:local-notification}
-% \end{figure}
-%
-% \begin{figure}[ht]
-% \centering
-% \includegraphics[width=0.95\textwidth]{figs/local-07-toolscall-request.png}
-% \caption{Captura local: solicitud \texttt{tools/call}.}
-% \label{fig:local-call-req}
-% \end{figure}
-%
-% \begin{figure}[ht]
-% \centering
-% \includegraphics[width=0.95\textwidth]{figs/local-08-toolscall-response.png}
-% \caption{Captura local: respuesta a la llamada de herramienta.}
-% \label{fig:local-call-resp}
-% \end{figure}
+La misma sesión capturó además una segunda ronda de \code{tools/list} (otra
+instancia del \emph{host}, mismo puerto) y dos llamadas adicionales,
+\code{search\_catalog} y \code{describe\_dataset}, generadas por una
+conversación real a través del frontend en vez de solicitudes manuales. El
+Listado~\ref{lst:local-stream} reproduce, en texto plano tal como aparece
+en \emph{Follow $\to$ HTTP Stream}, el tramo \code{initialize} $\to$
+\code{notifications/initialized} $\to$ \code{tools/call} (\code{list\_datasets}):
+
+\begin{lstlisting}[caption={Fragmento de la captura local (\texttt{tcp.stream eq 10}), en texto plano.}, label={lst:local-stream}]
+POST / HTTP/1.1
+Host: localhost:8091
+Content-Length: 172
+Content-Type: application/json
+
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"data-catalog-mcp-client","version":"0.0.1"}}}
+HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Length: 154
+
+{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-11-25","capabilities":{"tools":{}},"serverInfo":{"name":"data-catalog-mcp","version":"0.0.1"}}}
+
+POST / HTTP/1.1
+Host: localhost:8091
+Content-Length: 54
+Content-Type: application/json
+
+{"jsonrpc":"2.0","method":"notifications/initialized"}
+HTTP/1.1 204 No Content
+
+POST / HTTP/1.1
+Host: localhost:8091
+Content-Length: 95
+Content-Type: application/json
+
+{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"arguments":{},"name":"list_datasets"}}
+HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Length: 2016
+
+{"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"[\n  {\n    \"name\": \"meridian_mobile_subscribers\",\n    ...\n    \"row_count\": 7043\n  },\n  ...\n]"}]}}
+\end{lstlisting}
+
+La captura confirma, a nivel de enlace y red, lo mismo que
+\S\ref{sec:ejecucion} argumenta a nivel de arquitectura: origen y destino
+son \code{::1} (loopback IPv6) tanto en el \code{SYN} inicial como en cada
+solicitud HTTP posterior (Figura~\ref{fig:local-filtered-list}) no hay
+segundo host, por lo que la capa
+de red no realiza ningún trabajo de enrutamiento efectivo a diferencia de
+la captura remota (\S\ref{sec:capas}).
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.95\textwidth]{figs/local-01-filtered-list.png}
+\caption{Captura local: sesión completa filtrada con \texttt{tcp.port == 8091}, incluyendo el three-way handshake TCP (frames 21--23) y siete pares solicitud/respuesta HTTP sobre \texttt{::1}.}
+\label{fig:local-filtered-list}
+\end{figure}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.95\textwidth]{figs/local-03-http-stream.png}
+\caption{Captura local: \emph{Follow $\to$ HTTP Stream} de \texttt{tcp.stream eq 10}, la conversación completa en texto plano (compárese con el Listado~\ref{lst:local-stream}).}
+\label{fig:local-http-stream}
+\end{figure}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.95\textwidth]{figs/local-04-initialize-request.png}
+\caption{Captura local, frame 24: cuerpo JSON de la solicitud \texttt{initialize}, con \texttt{protocolVersion} y \texttt{clientInfo} visibles en el árbol de disección de Wireshark.}
+\label{fig:local-init-req}
+\end{figure}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.95\textwidth]{figs/local-05-initialize-response.png}
+\caption{Captura local, frame 26: respuesta a \texttt{initialize} (mismo \texttt{id:1}), con \texttt{capabilities.tools} y \texttt{serverInfo}.}
+\label{fig:local-init-resp}
+\end{figure}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.95\textwidth]{figs/local-06-notification.png}
+\caption{Captura local, frame 28: \texttt{notifications/initialized}. El árbol de disección muestra el objeto JSON completo (\texttt{jsonrpc}, \texttt{method}) sin campo \texttt{id}, lo que la identifica como notificación.}
+\label{fig:local-notification}
+\end{figure}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.95\textwidth]{figs/local-07-toolscall-request.png}
+\caption{Captura local, frame 745: solicitud \texttt{tools/call} para \texttt{list\_datasets} (\texttt{id:4}, \texttt{arguments} vacío).}
+\label{fig:local-call-req}
+\end{figure}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.95\textwidth]{figs/local-08-toolscall-response.png}
+\caption{Captura local, frame 746: respuesta a la llamada anterior, \texttt{content[0].text} con el arreglo de datasets registrados.}
+\label{fig:local-call-resp}
+\end{figure}
+
+\FloatBarrier
 
 \subsection{Análisis por capa}
 \label{sec:capas}
 
 \paragraph{Capa de enlace.}
 En la captura remota (Figura~\ref{fig:ip-layer}), Wireshark reporta un
-encabezado \textbf{Ethernet II} real: dirección MAC origen
+encabezado Ethernet II real: dirección MAC origen
 \code{84:01:12:d3:19:e9} (identificada por el fabricante como
 \texttt{KaonGroup}, la interfaz de red local de la máquina que capturó el
-tráfico) y dirección MAC destino \code{0e:62:e7:72:da:65}. Esta última
-\emph{no} es la MAC del servidor de Cloud Run --- por diseño, una dirección
-MAC nunca sobrevive más de un salto --- sino la del siguiente dispositivo en
-la ruta (el gateway/router local). Esta es la única capa donde se opera
-sobre un segmento físico compartido; a partir de la capa de red la
-comunicación ya es de extremo a extremo lógico.
+tráfico) y dirección MAC destino \code{0e:62:e7:72:da:65}. Esta última no es
+la MAC del servidor de Cloud Run, ya que por diseño una dirección MAC nunca
+sobrevive más de un salto, sino la del siguiente dispositivo en la ruta (el
+gateway/router local). Esta es la única capa donde se opera sobre un
+segmento físico compartido, a partir de la capa de red la comunicación ya
+es de extremo a extremo lógico.
 
 \paragraph{Capa de red.}
-El mismo frame (Figura~\ref{fig:ip-layer}) muestra \textbf{IPv6}: dirección
-origen \texttt{2800:98:1124:aa7::2} (la máquina cliente) y destino
+El mismo frame (Figura~\ref{fig:ip-layer}) muestra IPv6: dirección origen
+\texttt{2800:98:1124:aa7::2} (la máquina cliente) y destino
 \texttt{2600:1900:4243:200::} (la IP pública de Cloud Run, dentro del
-bloque de Google Cloud). Wireshark resuelve esta última mediante su base de
-datos GeoIP como ubicada en Estados Unidos --- una aproximación geográfica
-basada en el bloque de direcciones, no necesariamente la región física
-exacta (\texttt{northamerica-south1} en la consola de Cloud Run es la
-región lógica del servicio, no implica que el bloque IP esté geolocalizado
-con esa misma granularidad en bases de datos GeoIP de terceros). No se
-observó fragmentación IP: todos los segmentos grandes se manejan a nivel de
-TCP, no de IP.
+bloque de Google Cloud). 
 
 \paragraph{Capa de transporte.}
-Se observa el \textbf{three-way handshake} completo de TCP
-(Figura~\ref{fig:tcp-handshake}): \texttt{SYN} (puerto efímero \texttt{43952}
+Se observa el three-way handshake completo de TCP
+(Figura~\ref{fig:tcp-handshake}): \texttt{SYN} (puerto \texttt{43952}
 del cliente $\to$ puerto \texttt{443} del servidor), \texttt{SYN, ACK} (el
 paquete mostrado en detalle, con \texttt{Flags: 0x012}), y el \texttt{ACK}
 final del cliente que completa la conexión. Sobre esa conexión TCP ya
-establecida corre inmediatamente el \textbf{handshake TLS 1.3}
-(Figura~\ref{fig:tls-handshake}): \texttt{Client Hello} --- que incluye el
-campo SNI (\emph{Server Name Indication},
+establecida corre inmediatamente el handshake TLS 1.3
+(Figura~\ref{fig:tls-handshake}): primero \texttt{Client Hello}, que incluye
+el campo SNI (\emph{Server Name Indication},
 \texttt{data-catalog-mcp-53268160127.northamerica-\allowbreak
 south1.run.app}), visible en claro pese a ser TLS, ya que el SNI viaja sin
-cifrar para que el servidor sepa qué certificado presentar --- seguido de
+cifrar para que el servidor sepa qué certificado presentar, y luego
 \texttt{Server Hello, Change Cipher Spec}. A partir de ahí toda la
 comunicación queda cifrada bajo TLS 1.3: sin acceso a las claves de sesión
 (p.\,ej.\ vía \texttt{SSLKEYLOGFILE}), Wireshark solo puede mostrar
-\textbf{Application Data} cifrada (Figura~\ref{fig:app-data}), no su
-contenido. Esto confirma que la capa de transporte (TCP) entrega los datos
-de forma confiable y ordenada independientemente de que estén cifrados o
-no --- el cifrado es una responsabilidad de la capa superior (TLS, entre
-transporte y aplicación), no de TCP en sí.
+Application Data cifrada (Figura~\ref{fig:app-data}), no su contenido. Esto
+confirma que la capa de transporte (TCP) entrega los datos de forma
+confiable y ordenada independientemente de que estén cifrados o no: el
+cifrado es responsabilidad de la capa superior (TLS, entre transporte y
+aplicación), no de TCP en sí.
 
 \paragraph{Capa de aplicación.}
 Dentro de los registros \texttt{Application Data} de TLS, Wireshark
-identifica el protocolo interno como \textbf{HTTP} (campo
+identifica el protocolo interno como HTTP (campo
 \texttt{[Application Data Protocol: Hypertext Transfer Protocol]} en la
 Figura~\ref{fig:app-data}), aunque no puede decodificar su contenido sin
 las claves de sesión. Por diseño, el servidor MCP expone un único endpoint
 HTTP (\code{POST /}, \code{Content-Type: application/json}) cuyo cuerpo es,
-a su vez, un mensaje JSON-RPC --- es decir, JSON-RPC actúa como un
-sub-protocolo de aplicación dentro de HTTP. En la captura local
-(sin TLS, mismo servidor) este mismo intercambio es perfectamente legible;
-la Tabla~\ref{tab:jsonrpc} y las figuras referenciadas en
-\S\ref{sec:jsonrpc} muestran el contenido real de esos mensajes
-\code{initialize}, \code{tools/list} y \code{tools/call}.
+a su vez, un mensaje JSON-RPC. En otras palabras, JSON-RPC actúa como un
+sub-protocolo de aplicación dentro de HTTP. En la captura local (sin TLS,
+mismo servidor) este mismo intercambio es perfectamente legible; la
+Tabla~\ref{tab:jsonrpc} y las figuras referenciadas en \S\ref{sec:jsonrpc}
+muestran el contenido real de esos mensajes \code{initialize},
+\code{tools/list} y \code{tools/call}.
 
 \begin{figure}[ht]
 \centering
@@ -464,11 +758,93 @@ sesión.}
 \label{fig:app-data}
 \end{figure}
 
+\FloatBarrier
+
 \section{Conclusiones y comentario sobre el proyecto}
 
-% TODO: características implementadas, dificultades encontradas (ej. framing
-% de JSON-RPC a mano, manejo de stdio vs HTTP, despliegue en Cloud Run,
-% embeddings y su degradación a búsqueda por palabra clave), y lecciones
-% aprendidas sobre el protocolo MCP y su relación con JSON-RPC/HTTP/TCP/IP.
+De las funcionalidades exigidas, todas quedaron implementadas y funcionando
+de extremo a extremo: 
+
+\begin{itemize}
+  \item Conexión al LLM vía su API
+  \item Contexto mantenido entre turnos
+  \item Log visible de las interacciones MCP
+  \item Integración con MCP Filesystem y Git
+  \item Servidor corriendo de manera local como remota
+  \item Análisis de Wireshark
+\end{itemize}
+
+En términos de dificultad, el proyecto no me pareció particularmente complicado
+a nivel de implementación. El modelo mental de MCP, reducido a lo más esencial es
+\enquote{enviar JSON-RPC, recibir JSON-RPC} y en el fondo eso es lo que se hace en
+la mayoría de aplicaciones cliente-servidor. Donde sí tuve que prestar mayor atención fue
+la lectura de la especificación, a diferencia de la mayoría de proyectos que he trabajado
+no quedaba a mi discreción definir como se lleva a cabo la comunicación o realizar cambios
+a mi gusto. Aquí cualquier cambio puede hacer que el protocolo deje de ser compatible
+con algún otro host que lo implemente o que las diferentes partes del proyecto dejen
+de funcionar en conjunto.
+
+La otra dificultad genuina fue la captura y el análisis con Wireshark, no
+tanto por el uso de la herramienta en sí sino por conectar correctamente
+lo que se ve ahí con el resto del curso. Tuve que identificar qué corresponde al
+\emph{handshake} de sesión de MCP frente al \emph{handshake} TCP/TLS de la
+capa de transporte, entender por qué la captura remota queda cifrada donde
+la local no, y relacionar cada capa (enlace, red, transporte, aplicación)
+con lo que realmente está pasando en el código del proyecto. Es muy diferente
+poder explicar qué hace el protocolo MCP, a identificar las diferentes capas, que
+sucede en cada una, etc.
+
+Un momento particular de mayor entendimiento fue al conectar el servidor
+propio a un \emph{host} completamente ajeno al proyecto (Claude Code) y
+verlo funcionar sin ningún cambio de código, esto confirma en la práctica que
+el protocolo realmente logra lo que promete. Pude observar la interoperabilidad
+entre implementaciones independientes, y no solo entre el cliente y el servidor
+de este mismo repositorio. En general, el proyecto me dejó un entendimiento
+bastante más completo de cómo encajan JSON-RPC, HTTP, TCP/IP y TLS entre
+sí y como se utilizan en el protoclo MCP. 
+
+Concluyendo, siento que el proyecto me ayudo a entender de una manera más ``integral''
+los contenidos que hemos estado viendo en el curso.
+
+\section{Uso de IA}
+
+Para este proyecto se utilizó Inteligencia Artificial (Claude, de Anthropic) en múltiples
+etapas a lo largo del desarrollo. Principalmente, se le delegaron tareas que involucraran trabajo
+``manual'' y fueran fácilmente verificables por medio de los conocimientos adquiridos desarrollando
+el proyecto. Por ejemplo:
+
+\begin{itemize}
+  \item Creación de extracto no válido de datos
+  \item Generación de documentación .yaml para los datasets seleccionados
+  \item Implementación de interfaz de tools, al igual que la implementación de los
+    structs completos de cada uno.
+  \item Cambios de API de embeddings o API de LLM, a lo largo del proyecto utilicé Ollama, OpenAI, Gemini y
+    OpenCode. Algunos de ellos son interoperables, mientras que otros no.
+\end{itemize}
+
+También se utilizó para realizar algunas validaciones del protocolo, verificando que se cumplieran los specs 1:1 por si
+se me había pasado por algo. Por último, el Frontend en su totalidad fue desarrollado utilizando Claude. Personalmente, no
+me gusta el desarrollo frontend por lo que me dediqué principalmente a afinar algunas cuestiones de HCI. Entre ellas:
+
+\begin{itemize}
+  \item Paleta de colores:
+    \begin{itemize}
+      \item Colores neutros / suaves / poco saturados para evitar la sobrecarga cognitiva, además que personalmente
+        me agradan este tipo de colores.
+      \item Un único color cálido (coral) reservado exclusivamente para elementos interactivos (botones, estado
+        activo de una llamada a herramienta), de forma que signifique ``esto se puede presionar, o esto está
+        haciendo algo''.
+    \end{itemize}
+  \item Estilo visual ``neo-brutalista'': formas rectangulares sin bordes redondeados, contornos marcados, y
+    tipografía monoespaciada. Es una estética asociada a herramientas técnicas / de desarrollador más que a un
+    producto de consumo, la aplicación va dirigida a personas técncias que trabajan con datos. También
+    preferí mantener la interfaz simple con pocos elementos, comportamiento directo, sin animaciones ni decoración
+    de más.
+  \item Estado del sistema siempre visible: tanto el servidor (\code{cmd/host}) como el frontend transmiten el
+    estado en tiempo real vía \emph{server-sent events} en vez de un simple indicador de carga. El usuario ve
+    el texto de la respuesta llegando, cuándo se está invocando una herramienta, y el resultado de esa llamada,
+    todo mientras ocurre. Esto corresponde directamente a la heurística de Nielsen de ``visibilidad del estado
+    del sistema''.
+\end{itemize}
 
 \end{document}

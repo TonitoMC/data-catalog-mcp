@@ -3,6 +3,7 @@ package client
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"sort"
 )
@@ -67,6 +68,7 @@ func NewRouter(cfg Config) (*Router, error) {
 			closeAll(clients)
 			return nil, fmt.Errorf("client: initialize %q: %w", name, err)
 		}
+		log.Printf("mcp: %s: initialize ok", name)
 		clients[name] = c
 	}
 	return &Router{clients: clients}, nil
@@ -108,5 +110,12 @@ func (r *Router) CallTool(server, tool string, args map[string]any) (string, err
 	if !ok {
 		return "", fmt.Errorf("client: unknown server %q", server)
 	}
-	return c.CallTool(tool, args)
+	log.Printf("mcp: %s: -> tools/call %s %v", server, tool, args)
+	result, err := c.CallTool(tool, args)
+	if err != nil {
+		log.Printf("mcp: %s: <- tools/call %s error: %v", server, tool, err)
+		return "", err
+	}
+	log.Printf("mcp: %s: <- tools/call %s ok (%d bytes)", server, tool, len(result))
+	return result, nil
 }

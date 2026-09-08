@@ -6,7 +6,7 @@
 // transport a given server actually uses.
 package client
 
-const protocolVersion = "2024-11-05"
+const protocolVersion = "2025-11-25"
 
 type clientInfo struct {
 	Name    string `json:"name"`

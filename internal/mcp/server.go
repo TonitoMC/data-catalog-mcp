@@ -102,7 +102,7 @@ func (s *Server) callTool(req *jsonrpc.Request) *jsonrpc.Response {
 
 	t, ok := s.tools[params.Name]
 	if !ok {
-		return jsonrpc.NewErrorResponse(req.ID, jsonrpc.NewError(jsonrpc.CodeInvalidParams, "unknown tool: "+params.Name, nil))
+		return toolErrorResult(req.ID, "unknown tool: "+params.Name)
 	}
 
 	result, err := t.Call(params.Arguments)
@@ -112,21 +112,31 @@ func (s *Server) callTool(req *jsonrpc.Request) *jsonrpc.Response {
 	return jsonResult(req.ID, result)
 }
 
-// toolErrorResponse maps a Tool.Call error to a JSON-RPC error: bad
-// arguments and unresolvable references (ErrInvalidArgument,
-// tools.ErrDatasetNotFound, ...) become "invalid params"; anything else is
-// treated as an internal failure and logged.
+// toolErrorResponse maps a Tool.Call error onto the wire. Per the MCP spec
+// (2025-11-25 changelog, SEP-1303), argument/reference errors the caller
+// can fix and retry (ErrInvalidArgument, tools.ErrDatasetNotFound, ...) are
+// reported as a tool result with isError:true, not a JSON-RPC protocol
+// error — that puts the failure in front of the model as readable text it
+// can act on, rather than an opaque RPC fault. A genuine internal failure
+// (a bug, not a bad call) stays a JSON-RPC error and is logged.
 func toolErrorResponse(id *json.RawMessage, toolName string, err error) *jsonrpc.Response {
 	if errors.Is(err, ErrInvalidArgument) || errors.Is(err, tools.ErrDatasetNotFound) || errors.Is(err, tools.ErrColumnNotFound) {
-		return jsonrpc.NewErrorResponse(id, jsonrpc.NewError(jsonrpc.CodeInvalidParams, err.Error(), map[string]string{
-			"tool": toolName,
-		}))
+		return toolErrorResult(id, err.Error())
 	}
 	log.Printf("mcp: %s: %v", toolName, err)
 	return jsonrpc.NewErrorResponse(id, jsonrpc.NewError(jsonrpc.CodeInternalError, "tool call failed", map[string]string{
 		"tool":  toolName,
 		"cause": err.Error(),
 	}))
+}
+
+// toolErrorResult wraps msg as a failed tool call result (isError:true),
+// per the "tool execution errors" pattern above.
+func toolErrorResult(id *json.RawMessage, msg string) *jsonrpc.Response {
+	return jsonrpc.NewResult(id, callToolResult{
+		Content: []TextContent{{Type: "text", Text: msg}},
+		IsError: true,
+	})
 }
 
 // jsonResult wraps v as a tool's text content result. A string result is

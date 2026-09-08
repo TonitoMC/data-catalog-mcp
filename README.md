@@ -130,7 +130,7 @@ of the default (stdio) mode:
 
 ```bash
 printf '%s\n%s\n' \
-  '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05"}}' \
+  '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25"}}' \
   '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"list_datasets","arguments":{}}}' \
   | ./bin/data-catalog-mcp
 ```
@@ -180,6 +180,51 @@ other host — point a `client.json` entry at it with `"url"` instead of
 (swap in a Cloud Run URL once actually deployed there — nothing else about
 `client.json` changes). `PORT` is read the same way `TRANSPORT=http` does
 locally, since that's the env var Cloud Run itself sets.
+
+### Deploying to Google Cloud Run
+
+No local Docker build needed — Cloud Build reads the repo's `Dockerfile`
+directly. From the repo root, with the [`gcloud` CLI](https://cloud.google.com/sdk/docs/install)
+authenticated and a project selected:
+
+```bash
+gcloud run deploy data-catalog-mcp \
+  --source . \
+  --region northamerica-south1 \
+  --allow-unauthenticated \
+  --set-env-vars TRANSPORT=http
+```
+
+This builds the image from `Dockerfile` (Cloud Build, no local Docker
+required), pushes it, and deploys it as a Cloud Run service. `TRANSPORT`,
+`CATALOG_PATH`, and `DATA_DIR` are already set as defaults in the
+`Dockerfile`'s `ENV` lines, so only `TRANSPORT=http` needs to be repeated
+here for clarity; `PORT` is injected by Cloud Run itself, no need to set it.
+
+If `search_catalog` should use Gemini embeddings remotely (`EMBEDDINGS_PROVIDER=gemini`),
+store the API key in Secret Manager instead of passing it as a plain env var:
+
+```bash
+echo -n "<your-gemini-api-key>" | gcloud secrets create embeddings-api-key --data-file=-
+
+gcloud run deploy data-catalog-mcp \
+  --source . \
+  --region northamerica-south1 \
+  --allow-unauthenticated \
+  --set-env-vars TRANSPORT=http,EMBEDDINGS_PROVIDER=gemini,EMBEDDINGS_MODEL=gemini-embedding-001 \
+  --set-secrets EMBEDDINGS_API_KEY=embeddings-api-key:latest
+```
+
+Redeploying after a code change is the same command again — Cloud Build
+rebuilds from the current state of the working tree (or, for continuous
+deployment, connect the Cloud Run service to the GitHub repo from the Cloud
+Console so every push to `main` triggers a new build automatically, instead
+of running `gcloud run deploy` by hand each time).
+
+Once deployed, `gcloud run services describe data-catalog-mcp --region
+northamerica-south1 --format 'value(status.url)'` prints the service URL —
+drop that straight into `client.json`'s `data-catalog.url` (see above), no
+other change needed on the client side.
 
 ## The host + frontend (`cmd/host`, `frontend/`)
 

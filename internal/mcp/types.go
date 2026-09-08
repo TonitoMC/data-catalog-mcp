@@ -3,7 +3,7 @@ package mcp
 // Minimal subset of the MCP wire types — just enough for the
 // initialize / tools/list / tools/call round trip.
 
-const protocolVersion = "2024-11-05"
+const protocolVersion = "2025-11-25"
 
 type initializeParams struct {
 	ProtocolVersion string `json:"protocolVersion"`

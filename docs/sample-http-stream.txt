@@ -1,0 +1,101 @@
+POST / HTTP/1.1
+Host: localhost:8091
+User-Agent: Go-http-client/1.1
+Content-Length: 172
+Content-Type: application/json
+Accept-Encoding: gzip
+
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"data-catalog-mcp-client","version":"0.0.1"}}}
+HTTP/1.1 200 OK
+Content-Type: application/json
+Date: Tue, 08 Sep 2026 21:24:15 GMT
+Content-Length: 154
+
+{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-11-25","capabilities":{"tools":{}},"serverInfo":{"name":"data-catalog-mcp","version":"0.0.1"}}}
+
+POST / HTTP/1.1
+Host: localhost:8091
+User-Agent: Go-http-client/1.1
+Content-Length: 54
+Content-Type: application/json
+Accept-Encoding: gzip
+
+{"jsonrpc":"2.0","method":"notifications/initialized"}
+HTTP/1.1 204 No Content
+Date: Tue, 08 Sep 2026 21:24:15 GMT
+
+
+POST / HTTP/1.1
+Host: localhost:8091
+User-Agent: Go-http-client/1.1
+Content-Length: 46
+Content-Type: application/json
+Accept-Encoding: gzip
+
+{"jsonrpc":"2.0","id":2,"method":"tools/list"}
+HTTP/1.1 200 OK
+Content-Type: application/json
+Date: Tue, 08 Sep 2026 21:24:17 GMT
+Transfer-Encoding: chunked
+
+{"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"profile_column","description":"Profiles one column of a dataset: declared type, count, null count/ratio, distinct count, numeric min/max/mean, and either a full value-frequency table (low-cardinality columns) or sample values (high-cardinality columns).","inputSchema":{"properties":{"column":{"description":"Column name, as returned by describe_dataset.","type":"string"},"dataset":{"description":"Dataset name, as returned by list_datasets.","type":"string"}},"required":["dataset","column"],"type":"object"}},{"name":"validate_dataset","description":"Validates a dataset's data against its catalog quality rules (not_null, unique, range, allowed_values, regex, type_check, row_count) and reports any violations.","inputSchema":{"properties":{"dataset":{"description":"Dataset name, as returned by list_datasets.","type":"string"}},"required":["dataset"],"type":"object"}},{"name":"find_undocumented_columns","description":"Finds Parquet columns not declared in the catalog's data dictionary. Checks one dataset if given, otherwise every registered dataset.","inputSchema":{"properties":{"dataset":{"description":"Dataset name to check. Omit to check every registered dataset.","type":"string"}},"type":"object"}},{"name":"search_catalog","description":"Searches dataset and column descriptions for the ones most relevant to a query. Uses semantic search when an embeddings service is configured, otherwise keyword matching.","inputSchema":{"properties":{"limit":{"description":"Maximum number of results to return (default 5).","type":"integer"},"query":{"description":"Natural-language search query.","type":"string"}},"required":["query"],"type":"object"}},{"name":"ping","description":"Health check: returns pong.","inputSchema":{"properties":{},"type":"object"}},{"name":"list_datasets","description":"Lists the registered datasets with their description, origin, and row count.","inputSchema":{"properties":{},"type":"object"}},{"name":"describe_dataset","description":"Describes one registered dataset: its metadata, row count, and column dictionary.","inputSchema":{"properties":{"name":{"description":"Dataset name, as returned by list_datasets.","type":"string"}},"required":["name"],"type":"object"}}]}}
+
+POST / HTTP/1.1
+Host: localhost:8091
+User-Agent: Go-http-client/1.1
+Content-Length: 46
+Content-Type: application/json
+Accept-Encoding: gzip
+
+{"jsonrpc":"2.0","id":3,"method":"tools/list"}
+HTTP/1.1 200 OK
+Content-Type: application/json
+Date: Tue, 08 Sep 2026 21:24:17 GMT
+Transfer-Encoding: chunked
+
+{"jsonrpc":"2.0","id":3,"result":{"tools":[{"name":"profile_column","description":"Profiles one column of a dataset: declared type, count, null count/ratio, distinct count, numeric min/max/mean, and either a full value-frequency table (low-cardinality columns) or sample values (high-cardinality columns).","inputSchema":{"properties":{"column":{"description":"Column name, as returned by describe_dataset.","type":"string"},"dataset":{"description":"Dataset name, as returned by list_datasets.","type":"string"}},"required":["dataset","column"],"type":"object"}},{"name":"validate_dataset","description":"Validates a dataset's data against its catalog quality rules (not_null, unique, range, allowed_values, regex, type_check, row_count) and reports any violations.","inputSchema":{"properties":{"dataset":{"description":"Dataset name, as returned by list_datasets.","type":"string"}},"required":["dataset"],"type":"object"}},{"name":"find_undocumented_columns","description":"Finds Parquet columns not declared in the catalog's data dictionary. Checks one dataset if given, otherwise every registered dataset.","inputSchema":{"properties":{"dataset":{"description":"Dataset name to check. Omit to check every registered dataset.","type":"string"}},"type":"object"}},{"name":"search_catalog","description":"Searches dataset and column descriptions for the ones most relevant to a query. Uses semantic search when an embeddings service is configured, otherwise keyword matching.","inputSchema":{"properties":{"limit":{"description":"Maximum number of results to return (default 5).","type":"integer"},"query":{"description":"Natural-language search query.","type":"string"}},"required":["query"],"type":"object"}},{"name":"ping","description":"Health check: returns pong.","inputSchema":{"properties":{},"type":"object"}},{"name":"list_datasets","description":"Lists the registered datasets with their description, origin, and row count.","inputSchema":{"properties":{},"type":"object"}},{"name":"describe_dataset","description":"Describes one registered dataset: its metadata, row count, and column dictionary.","inputSchema":{"properties":{"name":{"description":"Dataset name, as returned by list_datasets.","type":"string"}},"required":["name"],"type":"object"}}]}}
+
+POST / HTTP/1.1
+Host: localhost:8091
+User-Agent: Go-http-client/1.1
+Content-Length: 95
+Content-Type: application/json
+Accept-Encoding: gzip
+
+{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"arguments":{},"name":"list_datasets"}}
+HTTP/1.1 200 OK
+Content-Type: application/json
+Date: Tue, 08 Sep 2026 21:24:38 GMT
+Content-Length: 2016
+
+{"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"[\n  {\n    \"name\": \"meridian_mobile_subscribers\",\n    \"description\": \"Meridian Mobile's subscriber base: active and churned accounts, contract terms, and monthly billing. Validated nightly extract from the billing system ... the current source of truth for subscriber reporting.\\n\",\n    \"origin\": \"Meridian Mobile ... CRM/billing nightly export (validated)\",\n    \"row_count\": 7043\n  },\n  {\n    \"name\": \"meridian_mobile_subscribers_raw\",\n    \"description\": \"Current month's raw subscriber extract, landed by Meridian Mobile's billing pipeline before the nightly validation job runs against it. Same schema as meridian_mobile_subscribers, but this is the pre-validation copy ... expect the odd malformed account ID or out-of-range value until it's been checked and promoted.\\n\",\n    \"origin\": \"Meridian Mobile ... billing pipeline, pre-validation landing zone\",\n    \"row_count\": 7043\n  },\n  {\n    \"name\": \"meridian_retail_sales\",\n    \"description\": \"Meridian Retail's order-level sales across every region and market: order and ship dates, product hierarchy, and per-line profitability.\\n\",\n    \"origin\": \"Meridian Retail ... ERP sales order export\",\n    \"row_count\": 51290\n  },\n  {\n    \"name\": \"meridian_commerce_transactions\",\n    \"description\": \"Meridian Commerce's UK/EU storefront transaction log: invoice lines, product codes, quantities, and customer country. Cancelled orders appear as invoices with a \\\"C\\\" prefix rather than being removed.\\n\",\n    \"origin\": \"Meridian Commerce ... e-commerce platform export\",\n    \"row_count\": 1067371\n  },\n  {\n    \"name\": \"corporate_hr_attrition\",\n    \"description\": \"Corporate headcount and attrition record across Meridian Holdings: role, tenure, compensation band, travel frequency, and overtime.\\n\",\n    \"origin\": \"Corporate HRIS ... People Analytics export\",\n    \"row_count\": 1470\n  }\n]"}]}}
+
+POST / HTTP/1.1
+Host: localhost:8091
+User-Agent: Go-http-client/1.1
+Content-Length: 184
+Content-Type: application/json
+Accept-Encoding: gzip
+
+{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"arguments":{"limit":10,"query":"company internal data HR employees headcount compensation attrition"},"name":"search_catalog"}}
+HTTP/1.1 200 OK
+Content-Type: application/json
+Date: Tue, 08 Sep 2026 21:25:10 GMT
+Transfer-Encoding: chunked
+
+{"jsonrpc":"2.0","id":5,"result":{"content":[{"type":"text","text":"[\n  {\n    \"dataset\": \"corporate_hr_attrition\",\n    \"description\": \"corporate_hr_attrition: Corporate headcount and attrition record across Meridian Holdings: role, tenure, compensation band, travel frequency, and overtime.\\n\",\n    \"score\": 0.782415427388252\n  },\n  {\n    \"dataset\": \"corporate_hr_attrition\",\n    \"column\": \"Attrition\",\n    \"description\": \"Attrition: Whether the employee left the organization\",\n    \"score\": 0.7211870020387418\n  },\n  {\n    \"dataset\": \"corporate_hr_attrition\",\n    \"column\": \"Age\",\n    \"description\": \"Age: Employee's age\",\n    \"score\": 0.7074222995149513\n  },\n  {\n    \"dataset\": \"corporate_hr_attrition\",\n    \"column\": \"YearsAtCompany\",\n    \"description\": \"YearsAtCompany: Years the employee has been with the organization\",\n    \"score\": 0.6933732753512009\n  },\n  {\n    \"dataset\": \"corporate_hr_attrition\",\n    \"column\": \"EmployeeNumber\",\n    \"description\": \"EmployeeNumber: Unique employee identifier\",\n    \"score\": 0.6834474229834824\n  },\n  {\n    \"dataset\": \"corporate_hr_attrition\",\n    \"column\": \"Department\",\n    \"description\": \"Department: Employee's department\",\n    \"score\": 0.6814298861126362\n  },\n  {\n    \"dataset\": \"corporate_hr_attrition\",\n    \"column\": \"DistanceFromHome\",\n    \"description\": \"DistanceFromHome: Distance between the employee's home and workplace\",\n    \"score\": 0.6797671866940976\n  },\n  {\n    \"dataset\": \"corporate_hr_attrition\",\n    \"column\": \"MonthlyIncome\",\n    \"description\": \"MonthlyIncome: Employee's monthly income\",\n    \"score\": 0.6775201436843354\n  },\n  {\n    \"dataset\": \"corporate_hr_attrition\",\n    \"column\": \"YearsInCurrentRole\",\n    \"description\": \"YearsInCurrentRole: Years the employee has held their current role\",\n    \"score\": 0.6698191287367444\n  },\n  {\n    \"dataset\": \"corporate_hr_attrition\",\n    \"column\": \"JobRole\",\n    \"description\": \"JobRole: Employee's job role\",\n    \"score\": 0.66265666341764\n  }\n]"}]}}
+
+POST / HTTP/1.1
+Host: localhost:8091
+User-Agent: Go-http-client/1.1
+Content-Length: 129
+Content-Type: application/json
+Accept-Encoding: gzip
+
+{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"arguments":{"name":"corporate_hr_attrition"},"name":"describe_dataset"}}
+HTTP/1.1 200 OK
+Content-Type: application/json
+Date: Tue, 08 Sep 2026 21:25:12 GMT
+Transfer-Encoding: chunked
+
+{"jsonrpc":"2.0","id":6,"result":{"content":[{"type":"text","text":"{\n  \"name\": \"corporate_hr_attrition\",\n  \"description\": \"Corporate headcount and attrition record across Meridian Holdings: role, tenure, compensation band, travel frequency, and overtime.\\n\",\n  \"origin\": \"Corporate HRIS ... People Analytics export\",\n  \"row_count\": 1470,\n  \"columns\": [\n    {\n      \"name\": \"EmployeeNumber\",\n      \"type\": \"integer\",\n      \"description\": \"Unique employee identifier\",\n      \"rule_count\": 2\n    },\n    {\n      \"name\": \"Age\",\n      \"type\": \"integer\",\n      \"description\": \"Employee's age\",\n      \"unit\": \"years\",\n      \"rule_count\": 1\n    },\n    {\n      \"name\": \"Attrition\",\n      \"type\": \"string\",\n      \"description\": \"Whether the employee left the organization\",\n      \"rule_count\": 1\n    },\n    {\n      \"name\": \"Department\",\n      \"type\": \"string\",\n      \"description\": \"Employee's department\",\n      \"rule_count\": 0\n    },\n    {\n      \"name\": \"JobRole\",\n      \"type\": \"string\",\n      \"description\": \"Employee's job role\",\n      \"rule_count\": 0\n    },\n    {\n      \"name\": \"BusinessTravel\",\n      \"type\": \"string\",\n      \"description\": \"Frequency of business travel\",\n      \"rule_count\": 1\n    },\n    {\n      \"name\": \"MonthlyIncome\",\n      \"type\": \"integer\",\n      \"description\": \"Employee's monthly income\",\n      \"unit\": \"usd\",\n      \"rule_count\": 2\n    },\n    {\n      \"name\": \"YearsAtCompany\",\n      \"type\": \"integer\",\n      \"description\": \"Years the employee has been with the organization\",\n      \"unit\": \"years\",\n      \"rule_count\": 1\n    },\n    {\n      \"name\": \"YearsInCurrentRole\",\n      \"type\": \"integer\",\n      \"description\": \"Years the employee has held their current role\",\n      \"unit\": \"years\",\n      \"rule_count\": 0\n    },\n    {\n      \"name\": \"DistanceFromHome\",\n      \"type\": \"integer\",\n      \"description\": \"Distance between the employee's home and workplace\",\n      \"unit\": \"km\",\n      \"rule_count\": 0\n    },\n    {\n      \"name\": \"OverTime\",\n      \"type\": \"string\",\n      \"description\": \"Whether the employee works overtime\",\n      \"rule_count\": 1\n    }\n  ]\n}"}]}}
