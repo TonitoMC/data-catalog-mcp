@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -25,6 +27,7 @@ type client struct {
 	baseURL    string
 	model      string
 	apiKey     string
+	sessionID  string
 	httpClient *http.Client
 }
 
@@ -32,13 +35,27 @@ type client struct {
 // https://api.openai.com/v1, or http://localhost:11434/v1 for Ollama),
 // using the given model for every call. apiKey may be empty for servers
 // that don't require auth.
+//
+// Every request also carries a random x-opencode-session header. Plain
+// OpenAI-compatible servers ignore unknown headers, but OpenCode Go's
+// routing layer rejects requests without one ("MissingSessionID") since it
+// uses the header to pin a multi-turn conversation to one backend
+// instance; a single session ID for the process's lifetime is enough since
+// this client is shared across the host's conversations.
 func New(baseURL, model, apiKey string) Client {
 	return &client{
 		baseURL:    baseURL,
 		model:      model,
 		apiKey:     apiKey,
+		sessionID:  newSessionID(),
 		httpClient: &http.Client{Timeout: 120 * time.Second},
 	}
+}
+
+func newSessionID() string {
+	b := make([]byte, 16)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
 }
 
 // wireMessage/wireToolCall mirror the OpenAI wire format, where tool call
@@ -283,6 +300,7 @@ func (c *client) newRequest(ctx context.Context, body []byte) (*http.Request, er
 		return nil, fmt.Errorf("llm: build request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("x-opencode-session", c.sessionID)
 	if c.apiKey != "" {
 		req.Header.Set("Authorization", "Bearer "+c.apiKey)
 	}
