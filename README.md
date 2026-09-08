@@ -1,19 +1,18 @@
 # data-catalog-mcp
 
-## Demo
-
-[https://youtu.be/r9nv5tqr924](https://youtu.be/r9nv5tqr924)
-
-*A few empty commits in the history are leftover from testing the git MCP
-tool (`git_commit` and friends) through an earlier chat REPL.*
-
-Read-only MCP server for data cataloging and quality validation, framed as
-**Meridian Holdings**' internal data catalog — five datasets across four
-business units (mobile subscribers, retail sales, e-commerce, corporate HR),
-each attributed to a plausible internal system of record rather than its
-real (Kaggle/UCI) origin, since this is meant to be used the way an analyst
-would use a real company catalog. Plus a web chat frontend and MCP host to
-use it.
+A hand-implemented Model Context Protocol (MCP) server, client, and host —
+JSON-RPC 2.0 framing and the MCP lifecycle (`initialize`, `tools/list`,
+`tools/call`) written from scratch, no MCP SDK. The server exposes a
+read-only data catalog with quality validation, framed as **Meridian
+Holdings**' internal data catalog — five datasets across four business
+units (mobile subscribers, retail sales, e-commerce, corporate HR), each
+attributed to a plausible internal system of record rather than its real
+(Kaggle/UCI) origin, since this is meant to be used the way an analyst
+would use a real company catalog. The same server runs unmodified either
+as a local subprocess (stdio) or as a remote HTTP service (e.g. on Cloud
+Run). A Go MCP host and a React chat frontend consume it, alongside the
+official Filesystem and Git MCP servers, so a single chat session can
+coordinate all three.
 
 ## Requirements
 
